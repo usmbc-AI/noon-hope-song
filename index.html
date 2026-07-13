@@ -232,7 +232,8 @@
 const ULSAN = {lat:35.5384, lon:129.3114};
 let weatherText = null;   // 사람이 읽을 날씨 문자열
 let weatherDetail = "";   // 기온/습도 등 부가정보
-let wx = {temp:null, humidity:null, wind:null}; // 숫자형(엔진용)
+let weatherAlert = "";    // 폭염/한파/호우 등 특보 수준(직접 산출)
+let wx = {temp:null, feel:null, humidity:null, wind:null, precip:0}; // 숫자형
 
 // ---------- 날짜 / 계절 ----------
 const DOW = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
@@ -307,22 +308,60 @@ const WMO = {
   85:"눈 소나기",86:"눈 소나기",
   95:"천둥번개",96:"천둥번개",99:"강한 천둥번개"
 };
+// Open-Meteo 데이터로 기상청 특보 수준을 근사 산출 (폭염·한파·호우·강풍)
+// Open-Meteo(날씨) + 대기질(PM10) 데이터로 기상청 특보 종류를 근사 판정
+// 폭염·한파·강풍·태풍급·호우·대설·건조·황사(미세먼지)
+function computeAlerts(){
+  const a=[]; const t=wx.temp, f=(wx.feel??wx.temp), h=wx.humidity, w=wx.wind, p=wx.precip||0, sn=wx.snow||0, pm=wx.pm10; const cond=weatherText||"";
+  // 기온 — 폭염 / 한파
+  if(f!=null){
+    if(f>=35) a.push(`폭염경보 수준(체감 ${f}도)`);
+    else if(f>=33) a.push(`폭염주의보 수준(체감 ${f}도)`);
+    else if(f>=31) a.push(`무더위(체감 ${f}도)`);
+    else if(f<=-12) a.push(`한파경보 수준(체감 ${f}도)`);
+    else if(f<=-9) a.push(`한파주의보 수준(체감 ${f}도)`);
+    else if(f<=0) a.push(`쌀쌀한 추위(체감 ${f}도)`);
+  }
+  // 바람 — 태풍급(강풍+호우) / 강풍
+  if(w!=null&&w>=50&&p>=15) a.push(`태풍급 강풍·호우(바람 ${w}km/h)`);
+  else if(w!=null&&w>=35) a.push(`강풍(바람 ${w}km/h)`);
+  // 비 — 호우
+  if(p>=15||/천둥/.test(cond)) a.push("호우 수준(강한 비)");
+  else if(p>=4||/강한 비|소나기/.test(cond)) a.push("비");
+  // 눈 — 대설
+  if(sn>=5) a.push("대설 수준(많은 눈)");
+  else if(sn>=1||/눈/.test(cond)) a.push("눈");
+  // 습도 — 후텁지근 / 건조
+  if(h!=null&&h>=80&&t!=null&&t>=25) a.push("높은 습도로 후텁지근");
+  else if(h!=null&&h<=25&&!/비|눈|소나기/.test(cond)) a.push("건조주의보 수준(매우 건조)");
+  // 대기질 — 황사 / 미세먼지
+  if(pm!=null){
+    if(pm>=150) a.push(`황사·미세먼지 매우나쁨(PM10 ${Math.round(pm)})`);
+    else if(pm>=80) a.push(`미세먼지 나쁨(PM10 ${Math.round(pm)})`);
+  }
+  return a;
+}
 async function loadWeather(){
   try{
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${ULSAN.lat}&longitude=${ULSAN.lon}`+
-      `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia%2FSeoul`;
-    const r=await fetch(url);
+    const wUrl=`https://api.open-meteo.com/v1/forecast?latitude=${ULSAN.lat}&longitude=${ULSAN.lon}`+
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,snowfall,weather_code,wind_speed_10m&timezone=Asia%2FSeoul`;
+    const aqUrl=`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${ULSAN.lat}&longitude=${ULSAN.lon}&current=pm10&timezone=Asia%2FSeoul`;
+    const [r, ar]=await Promise.all([fetch(wUrl), fetch(aqUrl).catch(()=>null)]);
     if(!r.ok) throw new Error("weather http "+r.status);
     const j=await r.json();
     const c=j.current;
     const cond=WMO[c.weather_code] ?? "알 수 없음";
     const temp=Math.round(c.temperature_2m);
+    const feel=Math.round(c.apparent_temperature ?? c.temperature_2m);
+    let pm10=null; try{ if(ar&&ar.ok){ const aj=await ar.json(); pm10=(aj.current&&aj.current.pm10)??null; } }catch(_){}
     weatherText=cond;
-    wx={temp:temp, humidity:c.relative_humidity_2m, wind:Math.round(c.wind_speed_10m)};
-    weatherDetail=`체감 기온 ${temp}°C · 습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`;
+    wx={temp:temp, feel:feel, humidity:c.relative_humidity_2m, wind:Math.round(c.wind_speed_10m), precip:c.precipitation??0, snow:c.snowfall??0, pm10:pm10};
+    weatherAlert=computeAlerts().join(" · ");
+    weatherDetail=`기온 ${temp}°C(체감 ${feel}°C) · 습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`+(pm10!=null?` · PM10 ${Math.round(pm10)}`:"")+(weatherAlert?` · [${weatherAlert}]`:"");
     document.getElementById("temp").textContent=temp+"°";
     document.getElementById("cond").textContent=cond;
-    document.getElementById("wxsub").textContent=`습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`;
+    document.getElementById("wxsub").innerHTML=`체감 ${feel}° · 습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`
+      +(weatherAlert?`<br><b style="color:var(--coral)">⚠️ ${esc(weatherAlert)}</b>`:"");
   }catch(e){
     console.warn("weather fail",e);
     document.getElementById("wx").style.display="none";
@@ -452,7 +491,7 @@ function prefilter(pool,n){
   const shuffle=arr=>{ for(let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; };
   const pickDiverse=(arr,cnt)=>{
     const per={}; const out=[];
-    for(const s of arr){ const c=per[s.artist]||0; if(c>=3)continue; per[s.artist]=c+1; out.push(s); if(out.length>=cnt)break; }
+    for(const s of arr){ const c=per[s.artist]||0; if(c>=2)continue; per[s.artist]=c+1; out.push(s); if(out.length>=cnt)break; }
     return out;
   };
   const pop=shuffle(pool.filter(s=>s.origin==="pop"));
@@ -492,7 +531,7 @@ async function aiSelect(candidates){
   const context={
     date:`${now.getFullYear()}년 ${M}월 ${D}일`, dow:DOW[now.getDay()],
     season, term:term.name, termMeaning:term.mean, holiday,
-    weather:weatherText, weatherDetail,
+    weather:weatherText, weatherDetail, weatherAlert,
     targetMood:[...desiredVibes()]
   };
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -517,6 +556,9 @@ function attachMeta(out,pool){
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]
     };
   });
+  // 같은 아티스트는 1곡만 (안전장치 — AI가 중복 넣어도 제거)
+  const seenArtist=new Set();
+  out.songs=out.songs.filter(s=>{ const k=normKey(s.artist); if(seenArtist.has(k))return false; seenArtist.add(k); return true; });
   return out;
 }
 
@@ -527,42 +569,33 @@ async function generate(){
   document.getElementById("result").innerHTML="";
   document.getElementById("loading").classList.add("on");
   setLoad("주파수를 맞추는 중…");
-  let out=null, source="ai";
   try{
     setLoad("실제 음원 목록을 모으는 중…");
     const pool=await buildPool();
-    if(!pool.length) throw new Error("음원 목록을 가져오지 못했습니다");
+    if(!pool.length) throw new Error("음원 목록(iTunes)을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
     const shortlist=prefilter(pool,78);
     setLoad("곡의 무드 태그를 살피는 중…");
     await fetchTags(shortlist);
     setLoad("오늘 무드에 맞는 곡을 고르는 중…");
-    out=attachMeta(await aiSelect(shortlist), pool);
-    if(!out.songs || !out.songs.length) throw new Error("선곡 결과가 비었습니다");
+    const out=attachMeta(await aiSelect(shortlist), pool);
+    if(!out.songs || !out.songs.length) throw new Error("AI 선곡 결과가 비었어요.");
+    render(out);
   }catch(e){
-    console.warn("AI 파이프라인 실패 → 내장 엔진 사용:",e.message||e);
-    source="offline";
-  }
-  try{
-    if(!out || source==="offline") out=offlineSelect();
-    render(out, source);
-  }catch(e2){
-    console.error(e2);
+    console.error("선곡 실패:",e);
     document.getElementById("result").innerHTML=
-      `<div class="err">선곡을 구성하지 못했어요. 잠시 후 <b>다시 시도</b>해 주세요.<br><small>${esc(e2.message||e2)}</small></div>`;
+      `<div class="err"><b>선곡을 불러오지 못했어요.</b><br>AI(선곡) 또는 음원 연결에 문제가 있었어요.<br><small style="opacity:.75">사유: ${esc(e.message||e)}</small><br><button class="again" id="retry" style="margin-top:12px">🔄 다시 시도</button></div>`;
+    const rb=document.getElementById("retry"); if(rb) rb.addEventListener("click",generate);
   }finally{
     document.getElementById("loading").classList.remove("on");
     btn.disabled=false;
   }
 }
 
-function render(out, source){
+function render(out){
   const songs=Array.isArray(out.songs)?out.songs:[];
   const moods=(out.mood_keywords||[]).map(m=>`<span class="mood">#${esc(m)}</span>`).join("");
-  const banner = source==="offline"
-    ? `<div class="banner">🔌 AI/음원 연결이 없어 <b>내장 선곡 엔진</b>으로 구성했어요. (라이브러리 기반 · 무드 매칭)</div>`
-    : "";
   const moodSummary = out.mood_summary ? `<p class="mood-summary">🎯 오늘의 무드 — ${esc(out.mood_summary)}</p>` : "";
-  let html=banner+`
+  let html=`
     <div class="opening">
       <p class="lbl">오늘의 오프닝</p>
       <p>${esc(out.opening_ment)}</p>
@@ -599,47 +632,7 @@ function render(out, source){
   document.getElementById("again").addEventListener("click",generate);
 }
 
-// ================= 내장 선곡 엔진 (AI/음원 연결 불가 시 폴백) =================
-const SONG_LIBRARY = [
-  {t:"좋은 날", a:"아이유", s:["봄","여름","사계절"], v:["설렘","신남"]},
-  {t:"밤편지", a:"아이유", s:["사계절"], v:["위로","잔잔"]},
-  {t:"블루밍", a:"아이유", s:["봄"], v:["설렘"]},
-  {t:"우주를 줄게", a:"볼빨간사춘기", s:["여름","사계절"], v:["설렘","청량"]},
-  {t:"너를 만나", a:"폴킴", s:["사계절"], v:["설렘","잔잔"]},
-  {t:"모든 날, 모든 순간", a:"폴킴", s:["사계절"], v:["위로","잔잔"]},
-  {t:"비도 오고 그래서", a:"헤이즈", s:["사계절"], v:["감성","위로"]},
-  {t:"봄이 좋냐??", a:"10CM", s:["봄"], v:["설렘","신남"]},
-  {t:"선물", a:"멜로망스", s:["사계절"], v:["설렘","잔잔"]},
-  {t:"너의 모든 순간", a:"성시경", s:["사계절"], v:["잔잔","위로"]},
-  {t:"붉은 노을", a:"이문세", s:["여름","사계절"], v:["신남","드라이브"]},
-  {t:"다행이다", a:"이적", s:["사계절"], v:["위로","잔잔"]},
-  {t:"스물다섯, 스물하나", a:"자우림", s:["사계절"], v:["감성","잔잔"]},
-  {t:"좋니", a:"윤종신", s:["가을","사계절"], v:["감성","위로"]},
-  {t:"주저하는 연인들을 위해", a:"잔나비", s:["사계절"], v:["감성","위로"]},
-  {t:"양화대교", a:"자이언티", s:["사계절"], v:["위로","잔잔"]},
-  {t:"꺼내 먹어요", a:"자이언티", s:["사계절"], v:["나른","위로"]},
-  {t:"Beautiful", a:"크러쉬", s:["사계절"], v:["설렘","감성"]},
-  {t:"instagram", a:"딘", s:["사계절"], v:["나른","감성"]},
-  {t:"청춘", a:"산울림", s:["여름","사계절"], v:["잔잔","감성"]},
-  {t:"애상", a:"쿨", s:["여름"], v:["신남","드라이브"]},
-  {t:"여름 이야기", a:"DJ DOC", s:["여름"], v:["신남","청량"]},
-  {t:"기억을 걷는 시간", a:"넬", s:["사계절","가을"], v:["감성","잔잔"]},
-  {t:"Antifreeze", a:"검정치마", s:["사계절"], v:["나른","감성"], indie:true},
-  {t:"Wi Ing Wi Ing", a:"혁오", s:["사계절"], v:["나른","감성"], indie:true},
-  {t:"TOMBOY", a:"혁오", s:["사계절","가을"], v:["감성","설렘"], indie:true},
-  {t:"난춘", a:"새소년", s:["봄","사계절"], v:["감성","설렘"], indie:true},
-  {t:"행운을 빌어요", a:"페퍼톤스", s:["여름","사계절"], v:["청량","신남","드라이브"], indie:true},
-  {t:"New Hippie Generation", a:"페퍼톤스", s:["여름"], v:["청량","드라이브","신남"], indie:true},
-  {t:"앵콜요청금지", a:"브로콜리너마저", s:["사계절","가을"], v:["감성","잔잔"], indie:true},
-  {t:"아름다운 것", a:"언니네 이발관", s:["사계절"], v:["감성","잔잔"], indie:true},
-  {t:"그렇고 그런 사이", a:"장기하와 얼굴들", s:["여름"], v:["신남","청량"], indie:true},
-  {t:"라라라", a:"소란", s:["여름","사계절"], v:["청량","설렘"], indie:true},
-  {t:"수고했어, 오늘도", a:"옥상달빛", s:["사계절"], v:["위로","잔잔"], indie:true},
-  {t:"Young", a:"ADOY", s:["여름","사계절"], v:["청량","나른","드라이브"], indie:true},
-  {t:"boat", a:"죠지", s:["사계절"], v:["나른","감성"], indie:true},
-  {t:"명동콜링", a:"카더가든", s:["사계절"], v:["감성","잔잔"], indie:true}
-];
-
+// desiredVibes: 오늘 날씨/계절 → 타깃 무드 키워드(선곡 AI에 힌트로 전달)
 function desiredVibes(){
   const set=new Set(); const cond=weatherText||""; const t=wx.temp,h=wx.humidity,w=wx.wind;
   if(/비|소나기|이슬/.test(cond)){set.add("감성");set.add("위로");set.add("잔잔");}
@@ -654,62 +647,5 @@ function desiredVibes(){
   if(season==="겨울")set.add("위로"); if(season==="봄")set.add("설렘");
   return set;
 }
-function airVariants(){
-  const t=wx.temp,h=wx.humidity,cond=weatherText||"";
-  if(/비|소나기|이슬/.test(cond)) return ["비 내리는 오후","빗소리 스미는 낮","촉촉이 젖은 오후"];
-  if(/눈/.test(cond)) return ["눈 내리는 한낮","하얗게 물든 오후"];
-  if(t!=null&&t>=27&&h!=null&&h>=70) return ["습도 높은 한낮","후덥지근한 오후","끈적한 여름 낮","무더운 한낮"];
-  if(t!=null&&t>=27) return ["햇살 뜨거운 한낮","여름 볕 내리는 낮","쨍한 여름 오후"];
-  if(t!=null&&t<=5) return ["쌀쌀한 한낮","찬 공기 감도는 오후"];
-  if(/흐림|안개/.test(cond)) return ["구름 낀 오후","흐릿한 한낮","안개 낀 낮"];
-  if(/구름/.test(cond)) return ["구름 사이로 햇살 비치는 낮","적당히 흐린 한낮","포근한 오후"];
-  return ["선선한 한낮","산뜻한 오후","맑은 낮"];
-}
-const CMT = {
-  청량:["{air}, {song}의 청량한 사운드로 잠깐 숨통 틔워봐요.","{air}에 시원하게 트인 이 곡 한 잔 어떠세요."],
-  나른:["나른한 {air}, {artist}의 목소리에 살짝 기대어 가요.","{air}과 잘 어울리는, 몽롱하고 편안한 곡이에요."],
-  위로:["{air}, {artist}가 조용히 어깨를 토닥여주는 곡이에요.","지친 마음에 스며드는, {air}에 필요한 위로예요."],
-  설렘:["{air}, 괜히 마음이 몽글해지는 곡이에요.","{air}에 듣기 좋은, 기분 좋아지는 한 곡."],
-  신남:["{air}, 볼륨 살짝 올리고 기분 전환하기 좋아요.","경쾌한 리듬이 {air}의 공기를 깨워줄 거예요."],
-  잔잔:["{air}, 잔잔하게 흘려듣기 좋은 곡이에요.","창밖 보며 듣기 좋은, {air}의 노래예요."],
-  드라이브:["{air}, 창문 열고 달리기 좋은 곡이에요.","바람에 실어 보내기 좋은, {air}의 드라이브 곡."],
-  감성:["{air}, 감성 한 스푼 얹고 싶은 순간의 곡이에요.","{artist} 특유의 무드가 오늘 공기와 잘 맞아요."]
-};
-function offlineSelect(){
-  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
-  const rnd=mulberry32(now.getFullYear()*1000+doy);
-  const want=desiredVibes();
-  const scored=SONG_LIBRARY.map(x=>{
-    const seasonOk=x.s.includes(season)||x.s.includes("사계절");
-    let sc=(x.s.includes(season)?2:0)+(x.s.includes("사계절")?0.5:0);
-    x.v.forEach(v=>{ if(want.has(v)) sc+=2; });
-    sc+=rnd()*1.2;
-    return {x,sc,seasonOk};
-  }).filter(o=>o.seasonOk).sort((a,b)=>b.sc-a.sc);
-  const indie=scored.filter(o=>o.x.indie).slice(0,3);
-  const main=scored.filter(o=>!o.x.indie).slice(0,6);
-  let chosen=[...main,...indie];
-  if(chosen.length<9){ for(const o of scored){ if(chosen.length>=9)break; if(!chosen.includes(o))chosen.push(o); } }
-  chosen=chosen.slice(0,9);
-  chosen.sort((a,b)=>b.sc-a.sc);
-  const usedCmt={};
-  const airs=airVariants();
-  const songs=chosen.map((o,i)=>{
-    const x=o.x;
-    const vibe=x.v.find(v=>want.has(v))||x.v[0];
-    const pool=CMT[vibe]||CMT["잔잔"];
-    const idx=(usedCmt[vibe]=(usedCmt[vibe]||0))%pool.length; usedCmt[vibe]++;
-    const air=airs[i%airs.length];
-    const comment=pool[idx].replace("{air}",air).replace("{song}",x.t).replace(/{artist}/g,x.a);
-    return {title:x.t, artist:x.a, indie:!!x.indie, comment, tags:x.v};
-  });
-  const moods=[...want].slice(0,3);
-  const tempPart = wx.temp!=null ? `기온 ${wx.temp}도, ` : "";
-  const humidPart = wx.humidity!=null&&wx.humidity>=70 ? "습도가 제법 높은 나른한 날이네요. " : "";
-  const opening = `${M}월 ${D}일 ${DOW[now.getDay()]}, 절기로는 '${term.name}' 무렵의 울산 하늘은 ${weatherText||"오늘의 날씨"}입니다. ${tempPart}${humidPart}${term.mean.split(",")[0]}. 정오의 희망곡, 오늘도 이 노래들과 함께 여러분 곁을 지킬게요.`;
-  return {opening_ment:opening, mood_summary:"내장 엔진 · 계절과 날씨 기반 무드 매칭", mood_keywords:moods, songs};
-}
-// ======================================================================
-
 document.getElementById("go").addEventListener("click",generate);
 </script>

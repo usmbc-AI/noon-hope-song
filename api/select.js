@@ -9,7 +9,9 @@
 // 응답:
 //   { opening_ment, mood_summary, mood_keywords:[...], songs:[ {title,artist,indie,reason}, ... ] }
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// gemini-flash-latest: 항상 최신 Flash를 가리키는 안정적 별칭(신규 키에서도 사용 가능).
+// 특정 버전 고정을 원하면 Vercel 환경변수 GEMINI_MODEL 로 덮어쓰기.
+const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 const RESPONSE_SCHEMA = {

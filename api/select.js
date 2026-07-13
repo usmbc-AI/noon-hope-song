@@ -13,9 +13,9 @@
 // GEMINI_MODEL 환경변수로 맨 앞 우선 모델을 지정할 수 있음.
 const MODEL_CHAIN = [...new Set([
   process.env.GEMINI_MODEL,
-  "gemini-2.0-flash",         // GA · 무료 하루 한도 넉넉 · 빠름
-  "gemini-2.5-flash-lite",    // 라이트 · 한도 넉넉
-  "gemini-flash-lite-latest", // 최신 라이트 별칭(신규 키 가용)
+  "gemini-flash-lite-latest", // 신규 키 가용 · 라이트(한도 넉넉) · 빠름 → 우선
+  "gemini-2.5-flash-lite",    // 라이트 대체
+  "gemini-2.0-flash",         // GA 대체(가용 시 별도 한도 버킷)
   "gemini-flash-latest",      // 최신 플래시(품질↑, 무료 한도 낮음) — 최후 폴백
 ].filter(Boolean))];
 

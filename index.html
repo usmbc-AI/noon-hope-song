@@ -138,11 +138,16 @@
   .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .tagchip{font-size:10.5px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-soft);border-radius:999px;padding:1px 8px}
 
+  .reroll-hint{font-size:12.5px;color:var(--ink-soft);background:rgba(246,166,9,.10);
+    border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:10px 0 2px;line-height:1.55}
+  .keepwrap{display:flex;align-items:flex-start;padding-top:3px;cursor:pointer}
+  .keepbox{width:18px;height:18px;accent-color:var(--sun-deep);cursor:pointer}
   .again{
-    margin:24px auto 0;display:block;font-family:"Gowun Dodum";font-size:14px;
+    margin:24px auto 0;display:block;width:100%;font-family:"Gowun Dodum";font-size:15px;text-align:center;
     color:var(--ink);background:transparent;border:1px solid var(--line-strong);
-    border-radius:12px;padding:11px 20px;cursor:pointer
+    border-radius:12px;padding:12px 20px;cursor:pointer
   }
+  .again-sub{display:block;font-size:11px;opacity:.85;margin-top:3px}
   .again:hover{background:rgba(255,255,255,.5)}
 
   .foot{text-align:center;font-size:11.5px;color:var(--ink-soft);opacity:.75;margin-top:30px;line-height:1.6}
@@ -484,10 +489,18 @@ async function buildPool(){
   return pool;
 }
 
-// 후보 풀에서 국내/팝 비율 + 다양성(아티스트당 최대 3곡) + 날짜 시드로 shortlist 추림
-function prefilter(pool,n){
+// ── 세션 상태 (재선곡·중복 방지용) ──
+let selPool=null;             // 세션 내 재사용 곡 풀
+const seenKeys=new Set();     // 지금까지 보여준 곡 (중복 방지)
+let currentOut=null;          // 현재 선곡 결과
+const TOTAL=9;                // 총 곡 수
+const keyOfSong=s=>normKey(s.title)+"|"+normKey(s.artist);
+async function getPool(){ if(selPool&&selPool.length) return selPool; selPool=await buildPool(); return selPool; }
+
+// 후보 풀에서 국내/팝 비율 + 다양성(아티스트당 최대 2곡) + 시드로 shortlist 추림
+function prefilter(pool,n,salt=0){
   const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
-  const rnd=mulberry32(now.getFullYear()*1000+doy);
+  const rnd=mulberry32(now.getFullYear()*1000+doy+salt*997);
   const shuffle=arr=>{ for(let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; };
   const pickDiverse=(arr,cnt)=>{
     const per={}; const out=[];
@@ -527,15 +540,18 @@ async function fetchTags(list){
 }
 
 // ---------- ③ 선곡 (Gemini, 프록시 경유) ----------
-async function aiSelect(candidates){
+async function aiSelect(candidates, opts={}){
   const context={
     date:`${now.getFullYear()}년 ${M}월 ${D}일`, dow:DOW[now.getDay()],
     season, term:term.name, termMeaning:term.mean, holiday,
     weather:weatherText, weatherDetail, weatherAlert,
     targetMood:[...desiredVibes()]
   };
+  const kept=(opts.kept||[]).map(s=>({title:s.title,artist:s.artist,origin:s.origin}));
+  const need=opts.need||TOTAL;
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({context,candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin}))})});
+    body:JSON.stringify({context, kept, need, total:TOTAL,
+      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin}))})});
   if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||("select "+r.status)); }
   return await r.json();
 }
@@ -563,35 +579,65 @@ function attachMeta(out,pool){
 }
 
 // ---------- 오케스트레이션 ----------
-async function generate(){
+// GO 버튼: 세션을 새로 시작(이전 기록 초기화)하고 전체 선곡
+async function generate(){ seenKeys.clear(); currentOut=null; await runSelection([]); }
+// 다시 선곡하기: 체크한 곡은 유지, 나머지를 새 곡으로 (이미 나온 곡 제외)
+async function reselect(){ await runSelection(getCheckedKept()); }
+function getCheckedKept(){
+  if(!currentOut) return [];
+  const kept=[];
+  document.querySelectorAll(".keepbox").forEach(b=>{
+    if(b.checked){ const i=+b.dataset.idx; if(currentOut.songs[i]) kept.push(currentOut.songs[i]); }
+  });
+  return kept;
+}
+
+async function runSelection(kept){
   const btn=document.getElementById("go");
   btn.disabled=true;
-  document.getElementById("result").innerHTML="";
   document.getElementById("loading").classList.add("on");
-  setLoad("주파수를 맞추는 중…");
+  setLoad(currentOut?"새로운 곡을 고르는 중…":"주파수를 맞추는 중…");
   try{
     setLoad("실제 음원 목록을 모으는 중…");
-    const pool=await buildPool();
+    const pool=await getPool();
     if(!pool.length) throw new Error("음원 목록(iTunes)을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.");
-    const shortlist=prefilter(pool,78);
+    const need=TOTAL-kept.length;
+    if(need<=0){ render(currentOut); return; } // 모두 유지 → 변화 없음
+
+    const keptArtists=new Set(kept.map(s=>normKey(s.artist)));
+    const avail=pool.filter(s=> !seenKeys.has(keyOfSong(s)) && !keptArtists.has(normKey(s.artist)));
+    if(!avail.length) throw new Error("새로 추천할 곡이 더 없어요. (후보를 거의 다 썼어요) — GO 버튼으로 처음부터 다시 시작해 보세요.");
+
+    const shortlist=prefilter(avail, Math.max(need*6,40), seenKeys.size+1);
     setLoad("곡의 무드 태그를 살피는 중…");
     await fetchTags(shortlist);
-    setLoad("오늘 무드에 맞는 곡을 고르는 중…");
-    const out=attachMeta(await aiSelect(shortlist), pool);
-    if(!out.songs || !out.songs.length) throw new Error("AI 선곡 결과가 비었어요.");
-    render(out);
+    setLoad(kept.length?"나머지를 새 곡으로 바꾸는 중…":"오늘 무드에 맞는 곡을 고르는 중…");
+    const aiOut=await aiSelect(shortlist, {kept, need});
+    let fresh=attachMeta(aiOut, pool).songs
+      .filter(s=> !seenKeys.has(keyOfSong(s)) && !keptArtists.has(normKey(s.artist)));
+
+    const songs=[...kept, ...fresh].slice(0,TOTAL);
+    if(!songs.length) throw new Error("AI 선곡 결과가 비었어요.");
+    currentOut={
+      opening_ment: currentOut?currentOut.opening_ment:aiOut.opening_ment,
+      mood_keywords: currentOut?currentOut.mood_keywords:aiOut.mood_keywords,
+      mood_summary: currentOut?currentOut.mood_summary:aiOut.mood_summary,
+      songs
+    };
+    songs.forEach(s=> seenKeys.add(keyOfSong(s)));
+    render(currentOut, songs.length<TOTAL);
   }catch(e){
     console.error("선곡 실패:",e);
     document.getElementById("result").innerHTML=
-      `<div class="err"><b>선곡을 불러오지 못했어요.</b><br>AI(선곡) 또는 음원 연결에 문제가 있었어요.<br><small style="opacity:.75">사유: ${esc(e.message||e)}</small><br><button class="again" id="retry" style="margin-top:12px">🔄 다시 시도</button></div>`;
-    const rb=document.getElementById("retry"); if(rb) rb.addEventListener("click",generate);
+      `<div class="err"><b>선곡을 불러오지 못했어요.</b><br><small style="opacity:.85">사유: ${esc(e.message||e)}</small><br><button class="again" id="retry" style="margin-top:12px">🔄 다시 시도</button></div>`;
+    const rb=document.getElementById("retry"); if(rb) rb.addEventListener("click",()=>runSelection([]));
   }finally{
     document.getElementById("loading").classList.remove("on");
     btn.disabled=false;
   }
 }
 
-function render(out){
+function render(out, short){
   const songs=Array.isArray(out.songs)?out.songs:[];
   const moods=(out.mood_keywords||[]).map(m=>`<span class="mood">#${esc(m)}</span>`).join("");
   const moodSummary = out.mood_summary ? `<p class="mood-summary">🎯 오늘의 무드 — ${esc(out.mood_summary)}</p>` : "";
@@ -605,7 +651,8 @@ function render(out){
     <div class="cue-head">
       <h2>오늘의 선곡표</h2>
       <span>총 ${songs.length}곡 · 울산 ${esc(weatherText||"")}</span>
-    </div>`;
+    </div>
+    <div class="reroll-hint">💡 마음에 드는 곡을 <b>체크 ☑</b> 하고 아래 <b>다시 선곡하기</b>를 누르면, 체크한 곡은 <b>유지</b>하고 나머지를 <b>새 곡</b>으로 바꿔드려요. (이미 나온 곡은 다시 안 나와요)</div>`;
   songs.forEach((s,i)=>{
     const indie = s.indie===true;
     const badge = (indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "")
@@ -617,6 +664,7 @@ function render(out){
       ? `<div class="tags">${s.tags.slice(0,6).map(t=>`<span class="tagchip">#${esc(t)}</span>`).join("")}</div>` : "";
     html+=`
       <div class="track ${indie?'is-indie':''}" style="animation-delay:${i*70}ms">
+        <label class="keepwrap" title="체크하면 다시 선곡 시 이 곡을 유지해요"><input type="checkbox" class="keepbox" data-idx="${i}"></label>
         <div class="no">${String(i+1).padStart(2,"0")}</div>
         ${art}
         <div class="body">
@@ -627,9 +675,10 @@ function render(out){
         </div>
       </div>`;
   });
-  html+=`<button class="again" id="again">🔄 다시 선곡하기</button>`;
+  const note = short ? `<div class="banner">🔁 후보를 거의 다 써서 ${songs.length}곡만 채웠어요. 처음부터 새로 하려면 위쪽 <b>오늘의 선곡표 만들기</b>를 눌러주세요.</div>` : "";
+  html+= note + `<button class="again" id="again">🔄 다시 선곡하기<span class="again-sub">체크한 곡은 유지 · 나머지는 새 곡으로</span></button>`;
   document.getElementById("result").innerHTML=html;
-  document.getElementById("again").addEventListener("click",generate);
+  document.getElementById("again").addEventListener("click",reselect);
 }
 
 // desiredVibes: 오늘 날씨/계절 → 타깃 무드 키워드(선곡 AI에 힌트로 전달)

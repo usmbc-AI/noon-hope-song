@@ -37,7 +37,7 @@ const RESPONSE_SCHEMA = {
   required: ["opening_ment", "mood_keywords", "songs"],
 };
 
-function buildPrompt(ctx, candidates) {
+function buildPrompt(ctx, candidates, kept, need, total) {
   const list = candidates
     .map((c, i) => {
       const tags = (c.tags || []).length ? ` · 태그: ${c.tags.join(", ")}` : "";
@@ -49,6 +49,11 @@ function buildPrompt(ctx, candidates) {
     .join("\n");
   const targetMood = Array.isArray(ctx.targetMood) && ctx.targetMood.length
     ? ctx.targetMood.join(", ") : "오늘 날씨와 계절에 맞는 무드";
+  kept = Array.isArray(kept) ? kept : [];
+  const keptList = kept.map((k, i) => `${i + 1}. ${k.origin === "pop" ? "[팝]" : "[국내]"} ${k.title} — ${k.artist}`).join("\n");
+  const keptBlock = kept.length
+    ? `\n[이미 확정된 곡 — 다시 고르지 말 것]\n${keptList}\n- 위 확정곡은 그대로 유지됩니다. **확정곡과 같은 아티스트는 절대 넣지 마세요.**`
+    : "";
 
   return `당신은 MBC FM4U 라디오 <정오의 희망곡>의 선곡 담당 작가입니다. 낮 12시, 따뜻하고 희망적인 한낮의 분위기가 이 프로그램의 정체성입니다.
 
@@ -69,13 +74,13 @@ function buildPrompt(ctx, candidates) {
 
 [당신의 임무]
 1) 위 '오늘 정보'를 종합해 오늘의 무드를 한 줄로 판단하세요 (mood_summary).
-2) 아래 [후보 곡 목록]에서만 8~10곡을 고르세요. 목록에 없는 곡은 절대 만들지 마세요.
+2) 아래 [후보 곡 목록]에서만 **정확히 ${need}곡**을 고르세요. 목록에 없는 곡은 절대 만들지 마세요.
    - title/artist는 목록에 적힌 그대로(철자·표기 동일) 사용하세요.
-   - **같은 아티스트는 최대 1곡만** 고르세요. (한 가수의 곡을 2개 이상 넣지 마세요 — 아티스트가 모두 달라야 합니다.)
-   - **[팝] 표시가 있는 해외 팝송을 정확히 3~4곡 포함**하고, 나머지는 [국내] 국내 가요로 채우세요.
-   - 국내 곡 중 2~3곡은 인디/언더그라운드 성격의 곡을 섞고, 그 곡은 indie:true 로 표시하세요.
+   - **서로 다른 아티스트여야 합니다** (한 가수의 곡을 2개 이상 넣지 마세요).${kept.length ? " 확정곡의 아티스트도 피하세요." : ""}
+   - 국내 곡 중 인디/언더그라운드 성격의 곡은 indie:true 로 표시하세요.
    - 너무 무겁거나 격한 곡은 피하고, 한낮에 어울리게 발라드·미디엄·감성 팝을 적절히 섞으세요.
-   - 곡 순서는 국내곡과 팝을 자연스럽게 번갈아 배치하세요.
+   - **해외 팝 비율**: 확정곡을 포함한 최종 총 ${total}곡 중 [팝]이 3~4곡이 되도록, 확정곡의 [팝] 개수를 고려해 이번에 고를 [팝] 수를 정하세요.
+   - songs에는 **이번에 새로 고른 ${need}곡만** 담으세요 (확정곡은 담지 않음).${keptBlock}
 
 [선곡 이유(reason) — 매우 중요]
 - 각 곡의 reason은 반드시 **"오늘의 날씨/계절/절기"와 "그 곡의 장르·아티스트 스타일 태그, 그리고 당신이 아는 그 곡의 실제 분위기"를 연결**해 왜 지금 어울리는지 분명히 설명하세요.
@@ -107,13 +112,16 @@ module.exports = async (req, res) => {
   const ctx = (body && body.context) || {};
   const candidates = Array.isArray(body && body.candidates) ? body.candidates.slice(0, 120) : [];
   if (!candidates.length) return res.status(400).json({ error: "candidates 배열 필요" });
+  const kept = Array.isArray(body && body.kept) ? body.kept : [];
+  const total = Number(body && body.total) || 9;
+  const need = Number(body && body.need) || Math.max(1, total - kept.length);
 
   try {
     const r = await fetch(`${ENDPOINT}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: buildPrompt(ctx, candidates) }] }],
+        contents: [{ parts: [{ text: buildPrompt(ctx, candidates, kept, need, total) }] }],
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 8192,

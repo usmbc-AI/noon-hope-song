@@ -417,7 +417,8 @@ const EVERGREEN_ARTISTS = [
   "아이유","이문세","성시경","폴킴","멜로망스","헤이즈","윤종신","이적","자우림",
   "잔나비","자이언티","크러쉬","딘","산울림","넬","볼빨간사춘기","10CM","백예린",
   "검정치마","혁오","새소년","페퍼톤스","브로콜리너마저","언니네 이발관","장기하와 얼굴들",
-  "소란","옥상달빛","ADOY","죠지","카더가든","적재","선우정아","잔나비","김광석","이소라"
+  "소란","옥상달빛","ADOY","죠지","카더가든","적재","선우정아","김광석","이소라",
+  "어반자카파","스탠딩 에그","규현","정승환","다비치","케이시","프롬","데이브레이크","하림","김동률"
 ];
 // 인디 배지용 아티스트 집합
 const INDIE_ARTISTS = new Set([
@@ -428,7 +429,8 @@ const INDIE_ARTISTS = new Set([
 const POP_ARTISTS = [
   "Bruno Mars","Ed Sheeran","Taylor Swift","Coldplay","Maroon 5","Adele","Sia","Charlie Puth",
   "Sam Smith","John Mayer","Jason Mraz","Norah Jones","Michael Bublé","Olivia Rodrigo","Dua Lipa",
-  "Sabrina Carpenter","Lauv","OneRepublic","Christina Perri","Jack Johnson","Corinne Bailey Rae","Bruno Major"
+  "Sabrina Carpenter","Lauv","OneRepublic","Christina Perri","Jack Johnson","Corinne Bailey Rae","Bruno Major",
+  "Colbie Caillat","Sara Bareilles","Shawn Mendes","Daniel Caesar","HONNE","Rex Orange County"
 ];
 
 async function fetchChart(){
@@ -442,13 +444,13 @@ function itunesArtist(a, country){
 
 // iTunes 요청 폭주(403/429) 방지: 만든 곡 풀을 12시간 브라우저 캐시
 function loadPoolCache(){
-  try{ const o=JSON.parse(localStorage.getItem("pool:v2")||"null");
+  try{ const o=JSON.parse(localStorage.getItem("pool:v3")||"null");
     if(o && (Date.now()-o.ts) < 12*3600e3 && Array.isArray(o.pool) && o.pool.length>=20) return o.pool;
   }catch(_){}
   return null;
 }
 function savePoolCache(pool){
-  try{ localStorage.setItem("pool:v2", JSON.stringify({ts:Date.now(), pool:pool.slice(0,320)})); }catch(_){}
+  try{ localStorage.setItem("pool:v3", JSON.stringify({ts:Date.now(), pool:pool.slice(0,500)})); }catch(_){}
 }
 
 async function buildPool(){
@@ -461,8 +463,8 @@ async function buildPool(){
   const shuffle=arr=>{const a=(arr||[]).slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;};
 
   const chart=await fetchChart();
-  const krArtists=[...new Set([...shuffle(chart.artists).slice(0,6), ...shuffle(EVERGREEN_ARTISTS).slice(0,6)])].slice(0,12);
-  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,3), ...shuffle(POP_ARTISTS).slice(0,4)])].slice(0,6);
+  const krArtists=[...new Set([...shuffle(chart.artists).slice(0,9), ...shuffle(EVERGREEN_ARTISTS).slice(0,13)])].slice(0,20);
+  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,4), ...shuffle(POP_ARTISTS).slice(0,6)])].slice(0,8);
 
   const seen=new Set(); const pool=[];
   const collect=(dataArr, origin)=>{

@@ -9,10 +9,15 @@
 // 응답:
 //   { opening_ment, mood_summary, mood_keywords:[...], songs:[ {title,artist,indie,reason}, ... ] }
 
-// gemini-flash-latest: 항상 최신 Flash를 가리키는 안정적 별칭(신규 키에서도 사용 가능).
-// 특정 버전 고정을 원하면 Vercel 환경변수 GEMINI_MODEL 로 덮어쓰기.
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// 무료 등급 한도는 모델별로 각각 있으므로, 막히면(429/404) 다음 모델로 넘어가는 폴백 체인.
+// GEMINI_MODEL 환경변수로 맨 앞 우선 모델을 지정할 수 있음.
+const MODEL_CHAIN = [...new Set([
+  process.env.GEMINI_MODEL,
+  "gemini-2.0-flash",         // GA · 무료 하루 한도 넉넉 · 빠름
+  "gemini-2.5-flash-lite",    // 라이트 · 한도 넉넉
+  "gemini-flash-lite-latest", // 최신 라이트 별칭(신규 키 가용)
+  "gemini-flash-latest",      // 최신 플래시(품질↑, 무료 한도 낮음) — 최후 폴백
+].filter(Boolean))];
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -117,38 +122,40 @@ module.exports = async (req, res) => {
   const total = Number(body && body.total) || 9;
   const need = Number(body && body.need) || Math.max(1, total - kept.length);
 
-  try {
-    const r = await fetch(`${ENDPOINT}?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: buildPrompt(ctx, candidates, kept, need, total) }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
-          responseSchema: RESPONSE_SCHEMA,
-        },
-      }),
-    });
+  const reqBody = JSON.stringify({
+    contents: [{ parts: [{ text: buildPrompt(ctx, candidates, kept, need, total) }] }],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 8192,
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+    },
+  });
 
-    if (!r.ok) {
-      const errText = await r.text();
-      return res.status(502).json({ error: "Gemini 오류", detail: errText.slice(0, 400) });
-    }
-
-    const data = await r.json();
-    const text =
-      (((data.candidates || [])[0] || {}).content || {}).parts?.map((p) => p.text || "").join("") || "";
-    let out;
+  let lastErr = "";
+  for (const model of MODEL_CHAIN) {
     try {
-      out = JSON.parse(text);
-    } catch (_) {
-      const s = text.indexOf("{"), e = text.lastIndexOf("}");
-      out = JSON.parse(text.slice(s, e + 1));
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: reqBody }
+      );
+      if (!r.ok) { lastErr = `${model} → ${(await r.text()).slice(0, 180)}`; continue; }
+      const data = await r.json();
+      const text =
+        (((data.candidates || [])[0] || {}).content || {}).parts?.map((p) => p.text || "").join("") || "";
+      let out;
+      try {
+        out = JSON.parse(text);
+      } catch (_) {
+        const s = text.indexOf("{"), e = text.lastIndexOf("}");
+        out = JSON.parse(text.slice(s, e + 1));
+      }
+      out._model = model; // 어떤 모델이 쓰였는지(디버그)
+      return res.status(200).json(out);
+    } catch (e) {
+      lastErr = `${model} → ${String(e.message || e)}`;
+      continue;
     }
-    return res.status(200).json(out);
-  } catch (e) {
-    return res.status(500).json({ error: "선곡 생성 실패", detail: String(e.message || e) });
   }
+  return res.status(502).json({ error: "Gemini 오류(모든 모델 한도 초과/불가)", detail: lastErr.slice(0, 400) });
 };

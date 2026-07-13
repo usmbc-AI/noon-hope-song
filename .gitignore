@@ -1,0 +1,11 @@
+# 비밀키 (절대 커밋/업로드 금지)
+.env
+.env.local
+.env.*.local
+
+# 의존성 / 빌드 / Vercel
+node_modules/
+.vercel/
+
+# 에디터 / 로컬 도구 설정
+.claude/

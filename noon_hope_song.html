@@ -1,0 +1,650 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFF6E6;
+    --paper-2:#FDEBCE;
+    --sun:#F6A609;
+    --sun-deep:#E8890C;
+    --ink:#163A3C;
+    --ink-soft:#2C5254;
+    --coral:#EB6A54;
+    --text:#33302A;
+    --line:rgba(22,58,60,.14);
+    --line-strong:rgba(22,58,60,.28);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Gowun Dodum",system-ui,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(120% 90% at 50% -10%, #FFE7A8 0%, var(--paper) 42%, var(--paper-2) 100%);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:26px 20px 60px}
+
+  /* ── Hero ── */
+  .hero{position:relative;text-align:center;padding:14px 0 6px}
+  .eyebrow{
+    font-family:"Gowun Dodum";letter-spacing:.28em;font-size:12px;
+    color:var(--ink-soft);text-transform:uppercase;margin:0 0 14px
+  }
+  .sun-stage{position:relative;width:132px;height:132px;margin:2px auto 10px}
+  .sun-svg{width:100%;height:100%;display:block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes glow{0%,100%{opacity:.9}50%{opacity:.55}}
+  .rays{transform-origin:66px 66px;animation:spin 60s linear infinite}
+  .halo{animation:glow 4s ease-in-out infinite}
+  .title{
+    font-family:"Black Han Sans",sans-serif;font-weight:400;
+    font-size:clamp(38px,10vw,60px);line-height:.98;color:var(--ink);
+    margin:2px 0 2px;letter-spacing:-.01em
+  }
+  .title .hope{color:var(--sun-deep)}
+  .subtitle{font-size:14px;color:var(--ink-soft);margin:0 0 20px}
+
+  /* ── Today card ── */
+  .today{
+    background:rgba(255,255,255,.62);
+    border:1px solid var(--line);
+    border-radius:20px;padding:18px 20px;margin:0 auto 22px;
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    box-shadow:0 10px 30px -22px rgba(22,58,60,.5);
+  }
+  .today .date-block{text-align:left}
+  .today .dow{font-family:"Black Han Sans";font-size:26px;color:var(--ink);line-height:1}
+  .today .date{font-size:13px;color:var(--ink-soft);margin-top:5px}
+  .today .season-tag{
+    display:inline-block;margin-top:8px;font-size:12px;
+    background:var(--ink);color:#FFF4DC;border-radius:999px;padding:3px 11px
+  }
+  .today .wx{text-align:right;min-width:120px}
+  .today .temp{font-family:"Black Han Sans";font-size:34px;color:var(--coral);line-height:1}
+  .today .cond{font-size:13px;color:var(--ink-soft);margin-top:4px}
+  .today .wx-sub{font-size:11px;color:var(--ink-soft);opacity:.8;margin-top:3px}
+
+  /* fallback weather picker */
+  .wx-fallback{margin:-8px 0 22px;text-align:center;font-size:13px;color:var(--ink-soft)}
+  .wx-fallback select{
+    font-family:inherit;font-size:13px;padding:6px 10px;border-radius:10px;
+    border:1px solid var(--line-strong);background:#fff;color:var(--text);margin-left:6px
+  }
+
+  /* ── Button ── */
+  .cta{
+    display:block;width:100%;font-family:"Black Han Sans";font-size:19px;
+    color:#FFF7E4;background:linear-gradient(180deg,var(--sun) 0%,var(--sun-deep) 100%);
+    border:none;border-radius:16px;padding:16px;cursor:pointer;letter-spacing:.02em;
+    box-shadow:0 12px 24px -12px var(--sun-deep);transition:transform .12s ease,filter .12s ease;
+  }
+  .cta:hover{filter:brightness(1.04)}
+  .cta:active{transform:translateY(1px) scale(.995)}
+  .cta:disabled{filter:grayscale(.3) brightness(.95);cursor:progress;opacity:.85}
+  .cta .sub{display:block;font-family:"Gowun Dodum";font-size:12px;opacity:.9;margin-top:3px;letter-spacing:0}
+
+  /* ── Loading ── */
+  .loading{text-align:center;padding:34px 0;color:var(--ink-soft);display:none}
+  .loading.on{display:block}
+  .dial{width:56px;height:56px;margin:0 auto 12px;border-radius:50%;
+    border:3px solid var(--line);border-top-color:var(--sun-deep);animation:spin 1s linear infinite}
+  .loading p{margin:0;font-size:14px}
+
+  /* ── Result ── */
+  #result{margin-top:26px}
+  .opening{
+    background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,.5));
+    border:1px solid var(--line);border-left:4px solid var(--sun-deep);
+    border-radius:16px;padding:20px 22px;margin-bottom:22px;
+  }
+  .opening .lbl{font-size:11px;letter-spacing:.2em;color:var(--sun-deep);text-transform:uppercase;margin:0 0 8px}
+  .opening p{font-family:"Gowun Batang";font-size:16px;line-height:1.7;margin:0;color:var(--text)}
+  .moods{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+  .mood{font-size:12px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:4px 12px}
+
+  .cue-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:6px
+  }
+  .cue-head h2{font-family:"Black Han Sans";font-size:20px;color:var(--ink);margin:0}
+  .cue-head span{font-size:12px;color:var(--ink-soft)}
+
+  .track{
+    display:flex;gap:16px;padding:16px 4px;border-bottom:1px solid var(--line);
+    opacity:0;transform:translateY(8px);animation:rise .5s ease forwards;
+  }
+  @keyframes rise{to{opacity:1;transform:none}}
+  .track .no{font-family:"Black Han Sans";font-size:20px;color:var(--sun-deep);min-width:30px;line-height:1.1}
+  .track .body{flex:1}
+  .track .song{font-size:16px;font-weight:700;color:var(--ink);font-family:"Gowun Dodum"}
+  .track .artist{color:var(--ink-soft)}
+  .digbadge{
+    display:inline-block;font-family:"Gowun Dodum";font-size:11px;font-weight:400;
+    color:#fff;background:var(--ink);border-radius:999px;padding:2px 9px;margin-left:8px;
+    vertical-align:middle;letter-spacing:.02em
+  }
+  .track.is-indie{background:linear-gradient(90deg,rgba(246,166,9,.08),transparent 70%)}
+  .track.is-indie .no{color:var(--ink)}
+  .chk{display:inline-block;margin-left:7px;font-size:12px;color:#2E8B57;vertical-align:middle;font-weight:700}
+  .chk.unv{color:var(--coral)}
+  .chk.unk{color:var(--ink-soft)}
+  .chk.pending{color:var(--ink-soft);opacity:.5;font-weight:400}
+  .track .comment{font-family:"Gowun Batang";font-size:14px;color:var(--text);margin-top:5px;line-height:1.65;opacity:.92}
+
+  .again{
+    margin:24px auto 0;display:block;font-family:"Gowun Dodum";font-size:14px;
+    color:var(--ink);background:transparent;border:1px solid var(--line-strong);
+    border-radius:12px;padding:11px 20px;cursor:pointer
+  }
+  .again:hover{background:rgba(255,255,255,.5)}
+
+  .foot{text-align:center;font-size:11.5px;color:var(--ink-soft);opacity:.75;margin-top:30px;line-height:1.6}
+
+  .err{background:#fff;border:1px solid var(--coral);border-radius:14px;padding:16px;color:var(--coral);font-size:14px;margin-top:20px}
+  .banner{background:rgba(22,58,60,.06);border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:16px;font-size:13px;color:var(--ink-soft)}
+
+  @media (max-width:480px){
+    .today{flex-direction:column;align-items:stretch}
+    .today .wx{text-align:left}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .rays,.halo,.dial{animation:none!important}
+    .track{animation:none;opacity:1;transform:none}
+  }
+</style>
+
+<div class="wrap">
+  <div class="hero">
+    <p class="eyebrow">MBC FM4U · 낮 12시</p>
+    <div class="sun-stage">
+      <svg class="sun-svg" viewBox="0 0 132 132" aria-hidden="true">
+        <circle class="halo" cx="66" cy="66" r="46" fill="#FFDF9E"/>
+        <g class="rays" stroke="var(--sun)" stroke-width="4" stroke-linecap="round">
+          <line x1="66" y1="8"  x2="66" y2="22"/>
+          <line x1="66" y1="110" x2="66" y2="124"/>
+          <line x1="8"  y1="66" x2="22" y2="66"/>
+          <line x1="110" y1="66" x2="124" y2="66"/>
+          <line x1="25" y1="25" x2="35" y2="35"/>
+          <line x1="97" y1="97" x2="107" y2="107"/>
+          <line x1="107" y1="25" x2="97" y2="35"/>
+          <line x1="35" y1="97" x2="25" y2="107"/>
+        </g>
+        <circle cx="66" cy="66" r="30" fill="var(--sun)"/>
+        <circle cx="66" cy="66" r="30" fill="none" stroke="var(--sun-deep)" stroke-width="2"/>
+      </svg>
+    </div>
+    <h1 class="title">정오의 <span class="hope">희망곡</span></h1>
+    <p class="subtitle">오늘의 무드에 맞춘 자동 선곡 · 울산</p>
+  </div>
+
+  <div class="today" id="today">
+    <div class="date-block">
+      <div class="dow" id="dow">—</div>
+      <div class="date" id="date">날짜 불러오는 중…</div>
+      <span class="season-tag" id="season">—</span>
+    </div>
+    <div class="wx" id="wx">
+      <div class="temp" id="temp">··°</div>
+      <div class="cond" id="cond">날씨 확인 중…</div>
+      <div class="wx-sub" id="wxsub"></div>
+    </div>
+  </div>
+
+  <div class="wx-fallback" id="fallback" style="display:none">
+    날씨를 자동으로 못 읽었어요. 오늘 울산 날씨를 골라주세요:
+    <select id="wxpick">
+      <option value="맑음">☀️ 맑음</option>
+      <option value="구름 많음">⛅ 구름 많음</option>
+      <option value="흐림">☁️ 흐림</option>
+      <option value="비">🌧️ 비</option>
+      <option value="눈">❄️ 눈</option>
+      <option value="안개">🌫️ 안개</option>
+    </select>
+  </div>
+
+  <button class="cta" id="go">
+    오늘의 선곡표 만들기
+    <span class="sub">날짜 · 계절 · 날씨를 읽어 국내 가요 8~10곡을 골라드려요</span>
+  </button>
+
+  <div class="loading" id="loading">
+    <div class="dial"></div>
+    <p id="loadmsg">주파수를 맞추는 중…</p>
+  </div>
+
+  <div id="result"></div>
+
+  <p class="foot">
+    각 곡은 <b>애플 뮤직(iTunes) 발매 정보로 실제 출시 여부를 대조</b>합니다.
+    <span class="chk">✓</span> 발매 확인 · <span class="chk unv">?</span> 확인 안 됨 · <span class="chk unk">–</span> 조회 실패.<br>
+    인디 곡은 DB에 없을 수도 있으니, 방송 전 음원·저작권은 한 번 더 확인해 주세요.
+  </p>
+</div>
+
+<script>
+const ULSAN = {lat:35.5384, lon:129.3114};
+let weatherText = null;   // 사람이 읽을 날씨 문자열
+let weatherDetail = "";   // 기온/습도 등 부가정보
+let wx = {temp:null, humidity:null, wind:null}; // 숫자형(엔진용)
+
+// ---------- 날짜 / 계절 ----------
+const DOW = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
+const now = new Date();
+function seasonOf(m){ // m: 1-12
+  if(m>=3&&m<=5)return "봄";
+  if(m>=6&&m<=8)return "여름";
+  if(m>=9&&m<=11)return "가을";
+  return "겨울";
+}
+// 2026 주요 기념일(양력+주요 음력)
+const HOLIDAYS = {
+  "1-1":"신정","2-16":"설날 연휴","2-17":"설날","2-18":"설날 연휴",
+  "3-1":"삼일절","5-5":"어린이날","5-24":"부처님오신날","6-6":"현충일",
+  "8-15":"광복절","9-24":"추석 연휴","9-25":"추석","9-26":"추석 연휴",
+  "10-3":"개천절","10-9":"한글날","12-25":"성탄절"
+};
+const M=now.getMonth()+1, D=now.getDate();
+const season = seasonOf(M);
+const holiday = HOLIDAYS[`${M}-${D}`] || null;
+
+// ---------- 24절기 (근사 날짜 · 의미) ----------
+const SOLAR_TERMS = [
+  {m:1,d:6,name:"소한",mean:"한 해 중 가장 추운 무렵의 시작"},
+  {m:1,d:20,name:"대한",mean:"큰 추위, 겨울의 매듭"},
+  {m:2,d:4,name:"입춘",mean:"봄의 문턱, 새 기운이 도는 때"},
+  {m:2,d:19,name:"우수",mean:"눈이 녹아 비가 되는, 봄비의 시작"},
+  {m:3,d:6,name:"경칩",mean:"겨울잠 자던 것들이 깨어나는 때"},
+  {m:3,d:21,name:"춘분",mean:"낮과 밤의 길이가 같아지는 봄의 한가운데"},
+  {m:4,d:5,name:"청명",mean:"하늘이 맑고 화창해지는 때"},
+  {m:4,d:20,name:"곡우",mean:"촉촉한 봄비가 곡식을 적시는 때"},
+  {m:5,d:6,name:"입하",mean:"여름의 문턱, 신록이 짙어지는 때"},
+  {m:5,d:21,name:"소만",mean:"햇살이 풍성해지고 만물이 자라는 때"},
+  {m:6,d:6,name:"망종",mean:"씨 뿌리기 좋은, 부지런한 초여름"},
+  {m:6,d:21,name:"하지",mean:"낮이 가장 긴 여름의 절정"},
+  {m:7,d:7,name:"소서",mean:"본격적인 더위가 시작되는 때"},
+  {m:7,d:23,name:"대서",mean:"한 해 중 가장 더운 무렵"},
+  {m:8,d:7,name:"입추",mean:"가을의 문턱, 더위 속 서늘함이 스미는 때"},
+  {m:8,d:23,name:"처서",mean:"더위가 한풀 꺾이는 때"},
+  {m:9,d:8,name:"백로",mean:"이슬이 맺히기 시작하는 초가을"},
+  {m:9,d:23,name:"추분",mean:"낮과 밤이 같아지는 가을의 한가운데"},
+  {m:10,d:8,name:"한로",mean:"찬 이슬이 내리는, 깊어가는 가을"},
+  {m:10,d:24,name:"상강",mean:"서리가 내리기 시작하는 때"},
+  {m:11,d:7,name:"입동",mean:"겨울의 문턱"},
+  {m:11,d:22,name:"소설",mean:"첫눈이 오기 시작하는 때"},
+  {m:12,d:7,name:"대설",mean:"눈이 많이 내리는 한겨울"},
+  {m:12,d:22,name:"동지",mean:"밤이 가장 긴 날, 다시 해가 길어지는 전환점"}
+];
+function currentSolarTerm(mo,da){
+  const key=mo*100+da;
+  let cur=SOLAR_TERMS[SOLAR_TERMS.length-1]; // 기본: 동지(연초 소한 전 구간)
+  for(const t of SOLAR_TERMS){ if(t.m*100+t.d<=key) cur=t; }
+  return cur;
+}
+const term = currentSolarTerm(M,D);
+
+document.getElementById("dow").textContent = DOW[now.getDay()];
+document.getElementById("date").textContent =
+  `${now.getFullYear()}년 ${M}월 ${D}일` + (holiday?` · ${holiday}`:"");
+document.getElementById("season").textContent = `${season} · ${term.name}`;
+document.getElementById("season").title = `${term.name} — ${term.mean}`;
+
+// ---------- 날씨(Open-Meteo) ----------
+const WMO = {
+  0:"맑음",1:"대체로 맑음",2:"구름 조금",3:"흐림",
+  45:"안개",48:"짙은 안개",
+  51:"이슬비",53:"이슬비",55:"강한 이슬비",
+  61:"약한 비",63:"비",65:"강한 비",
+  66:"진눈깨비",67:"진눈깨비",
+  71:"약한 눈",73:"눈",75:"강한 눈",77:"싸락눈",
+  80:"소나기",81:"소나기",82:"강한 소나기",
+  85:"눈 소나기",86:"눈 소나기",
+  95:"천둥번개",96:"천둥번개",99:"강한 천둥번개"
+};
+async function loadWeather(){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${ULSAN.lat}&longitude=${ULSAN.lon}`+
+      `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia%2FSeoul`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error("weather http "+r.status);
+    const j=await r.json();
+    const c=j.current;
+    const cond=WMO[c.weather_code] ?? "알 수 없음";
+    const temp=Math.round(c.temperature_2m);
+    weatherText=cond;
+    wx={temp:temp, humidity:c.relative_humidity_2m, wind:Math.round(c.wind_speed_10m)};
+    weatherDetail=`체감 기온 ${temp}°C · 습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`;
+    document.getElementById("temp").textContent=temp+"°";
+    document.getElementById("cond").textContent=cond;
+    document.getElementById("wxsub").textContent=`습도 ${c.relative_humidity_2m}% · 바람 ${Math.round(c.wind_speed_10m)}km/h`;
+  }catch(e){
+    console.warn("weather fail",e);
+    document.getElementById("wx").style.display="none";
+    const fb=document.getElementById("fallback");
+    fb.style.display="block";
+    const sync=()=>{ weatherText=document.getElementById("wxpick").value; weatherDetail="(직접 선택)"; };
+    document.getElementById("wxpick").addEventListener("change",sync);
+    sync();
+  }
+}
+loadWeather();
+
+// ---------- 선곡 생성 ----------
+const LOAD_MSGS=["주파수를 맞추는 중…","오늘 하늘빛과 바람을 살피는 중…","울산 날씨에 어울리는 곡을 고르는 중…","숨은 명곡을 디깅하는 중…","선곡표를 정리하는 중…"];
+let msgTimer=null;
+function cycleMsgs(){
+  let i=0;const el=document.getElementById("loadmsg");
+  msgTimer=setInterval(()=>{i=(i+1)%LOAD_MSGS.length;el.textContent=LOAD_MSGS[i];},1600);
+}
+
+function buildPrompt(){
+  return `당신은 MBC FM4U 라디오 <정오의 희망곡>의 선곡 담당 작가입니다. 낮 12시, 따뜻하고 희망적인 한낮의 분위기가 이 프로그램의 정체성입니다.
+
+[오늘 정보]
+- 날짜: ${now.getFullYear()}년 ${M}월 ${D}일 ${DOW[now.getDay()]}
+- 계절: ${season}
+- 절기: ${term.name} (${term.mean})
+- 특별한 날: ${holiday || "없음"}
+- 지역: 울산
+- 날씨: ${weatherText || "정보 없음"}
+- 상세: ${weatherDetail}
+
+[절기를 선곡에 활용]
+- 오늘의 절기 "${term.name}"의 의미(${term.mean})가 주는 계절감·정서를 선곡과 오프닝 멘트에 은근히 녹여주세요.
+- 곡 코멘트 중 1곡 정도는 절기의 분위기(예: 소서라면 본격 더위, 처서라면 한풀 꺾인 더위)를 언급하면 좋습니다.
+
+[날씨를 선곡에 활용]
+- 하늘 상태(맑음/구름/흐림/비 등)뿐 아니라 **기온·습도·바람세기**까지 종합해 오늘의 공기를 상상하세요.
+  (예: 습도가 높고 바람이 약하면 나른하고 눅진한 오후 → 청량하거나 편안한 곡 / 바람이 세면 시원하게 트인 곡 / 구름 조금이면 적당히 밝고 산뜻한 곡)
+- 곡별 comment 중 최소 3곡 이상은, 오늘 날씨의 구체적 요소(예: "습도 높은 한낮", "선선한 바람", "구름 사이 햇살")를 자연스럽게 언급하며 왜 지금 어울리는지 이유를 써주세요.
+- opening_ment에도 오늘의 기온·하늘·바람 같은 실제 날씨 감각을 담아주세요.
+
+[선곡 규칙]
+- 국내 가요 위주로 8~10곡을 고르세요.
+- 그중 2~3곡은 반드시 국내 인디/언더그라운드 뮤지션의 곡으로 넣으세요. 널리 알려지진 않았지만 오늘 무드에 꼭 맞는 "숨은 명곡"을 디깅한다는 마음으로 고르되, 실제 존재하는 곡이어야 합니다. (예: 인디 밴드·싱어송라이터·인디 레이블 소속 등)
+- 오늘의 계절·요일·날씨·특별한 날의 무드를 곡 선택에 자연스럽게 녹이세요.
+- 한낮에 어울리게 너무 무겁거나 격한 곡은 피하고, 발라드·미디엄·감성 팝·기분 좋은 곡을 적절히 섞으세요.
+- 대중적인 곡은 최신곡과 추억의 명곡을 함께 섞어도 좋습니다.
+
+[정확성 — 매우 중요]
+- 반드시 **실제로 공식 발매된 음원**(정규앨범·EP·싱글 수록곡)만 추천하세요. 존재가 불확실하거나 지어낸 곡은 절대 넣지 마세요.
+- 가수명·곡명은 음원 사이트 표기와 최대한 동일하게, 정확하게 쓰세요. (발매 여부는 시스템이 애플 뮤직 DB로 다시 대조합니다)
+- 확신이 서지 않는 곡은 넣지 말고, 확실한 다른 곡으로 대체하세요.
+- 각 곡마다 인디 곡이면 "indie":true, 아니면 "indie":false 를 표시하세요.
+- 인디 곡의 comment에는 왜 숨은 명곡인지, 어떤 매력이 있는지 살짝 소개하듯 써주세요.
+- 곡별 추천 이유(comment)는 청취자에게 건네듯 따뜻한 한 문장으로.
+- opening_ment는 오늘 날씨·계절을 언급하는 3~4문장의 정겨운 오프닝 멘트로.
+
+반드시 아래 JSON 형식으로만, 다른 말/마크다운/백틱 없이 출력하세요:
+{"opening_ment":"...","mood_keywords":["무드1","무드2","무드3"],"songs":[{"title":"곡명","artist":"가수","indie":false,"comment":"추천 이유 한 문장"}]}`;
+}
+
+async function generate(){
+  const btn=document.getElementById("go");
+  btn.disabled=true;
+  document.getElementById("result").innerHTML="";
+  document.getElementById("loading").classList.add("on");
+  cycleMsgs();
+  let out=null, source="ai";
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:2500,
+        messages:[{role:"user",content:buildPrompt()}]
+      })
+    });
+    const data=await res.json();
+    let text=(data.content||[]).map(b=>b.text||"").join("\n").trim();
+    text=text.replace(/```json/gi,"").replace(/```/g,"").trim();
+    const start=text.indexOf("{"), end=text.lastIndexOf("}");
+    if(start>=0&&end>=0) text=text.slice(start,end+1);
+    out=JSON.parse(text);
+  }catch(e){
+    console.warn("AI 연결 실패 → 내장 엔진 사용:",e.message||e);
+    source="offline";
+  }
+  try{
+    if(!out) out=offlineSelect();
+    render(out, source);
+  }catch(e2){
+    console.error(e2);
+    document.getElementById("result").innerHTML=
+      `<div class="err">선곡을 구성하지 못했어요. 잠시 후 <b>다시 시도</b>해 주세요.<br><small>${(e2.message||e2)}</small></div>`;
+  }finally{
+    clearInterval(msgTimer);
+    document.getElementById("loading").classList.remove("on");
+    btn.disabled=false;
+  }
+}
+
+function esc(s){return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+// ================= 내장 선곡 엔진 (AI 연결 불가 시 폴백) =================
+// 실제 발매된 국내 곡. seasons: 어울리는 계절, vibe: 무드 태그, indie: 인디 여부
+const SONG_LIBRARY = [
+  {t:"좋은 날", a:"아이유", s:["봄","여름","사계절"], v:["설렘","신남"]},
+  {t:"밤편지", a:"아이유", s:["사계절"], v:["위로","잔잔"]},
+  {t:"블루밍", a:"아이유", s:["봄"], v:["설렘"]},
+  {t:"우주를 줄게", a:"볼빨간사춘기", s:["여름","사계절"], v:["설렘","청량"]},
+  {t:"너를 만나", a:"폴킴", s:["사계절"], v:["설렘","잔잔"]},
+  {t:"모든 날, 모든 순간", a:"폴킴", s:["사계절"], v:["위로","잔잔"]},
+  {t:"비도 오고 그래서", a:"헤이즈", s:["사계절"], v:["감성","위로"]},
+  {t:"봄이 좋냐??", a:"10CM", s:["봄"], v:["설렘","신남"]},
+  {t:"선물", a:"멜로망스", s:["사계절"], v:["설렘","잔잔"]},
+  {t:"너의 모든 순간", a:"성시경", s:["사계절"], v:["잔잔","위로"]},
+  {t:"붉은 노을", a:"이문세", s:["여름","사계절"], v:["신남","드라이브"]},
+  {t:"다행이다", a:"이적", s:["사계절"], v:["위로","잔잔"]},
+  {t:"스물다섯, 스물하나", a:"자우림", s:["사계절"], v:["감성","잔잔"]},
+  {t:"좋니", a:"윤종신", s:["가을","사계절"], v:["감성","위로"]},
+  {t:"주저하는 연인들을 위해", a:"잔나비", s:["사계절"], v:["감성","위로"]},
+  {t:"양화대교", a:"자이언티", s:["사계절"], v:["위로","잔잔"]},
+  {t:"꺼내 먹어요", a:"자이언티", s:["사계절"], v:["나른","위로"]},
+  {t:"Beautiful", a:"크러쉬", s:["사계절"], v:["설렘","감성"]},
+  {t:"instagram", a:"딘", s:["사계절"], v:["나른","감성"]},
+  {t:"청춘", a:"산울림", s:["여름","사계절"], v:["잔잔","감성"]},
+  {t:"애상", a:"쿨", s:["여름"], v:["신남","드라이브"]},
+  {t:"여름 이야기", a:"DJ DOC", s:["여름"], v:["신남","청량"]},
+  {t:"기억을 걷는 시간", a:"넬", s:["사계절","가을"], v:["감성","잔잔"]},
+  // ── 인디 ──
+  {t:"Antifreeze", a:"검정치마", s:["사계절"], v:["나른","감성"], indie:true},
+  {t:"Wi Ing Wi Ing", a:"혁오", s:["사계절"], v:["나른","감성"], indie:true},
+  {t:"TOMBOY", a:"혁오", s:["사계절","가을"], v:["감성","설렘"], indie:true},
+  {t:"난춘", a:"새소년", s:["봄","사계절"], v:["감성","설렘"], indie:true},
+  {t:"행운을 빌어요", a:"페퍼톤스", s:["여름","사계절"], v:["청량","신남","드라이브"], indie:true},
+  {t:"New Hippie Generation", a:"페퍼톤스", s:["여름"], v:["청량","드라이브","신남"], indie:true},
+  {t:"앵콜요청금지", a:"브로콜리너마저", s:["사계절","가을"], v:["감성","잔잔"], indie:true},
+  {t:"아름다운 것", a:"언니네 이발관", s:["사계절"], v:["감성","잔잔"], indie:true},
+  {t:"그렇고 그런 사이", a:"장기하와 얼굴들", s:["여름"], v:["신남","청량"], indie:true},
+  {t:"라라라", a:"소란", s:["여름","사계절"], v:["청량","설렘"], indie:true},
+  {t:"수고했어, 오늘도", a:"옥상달빛", s:["사계절"], v:["위로","잔잔"], indie:true},
+  {t:"Young", a:"ADOY", s:["여름","사계절"], v:["청량","나른","드라이브"], indie:true},
+  {t:"boat", a:"죠지", s:["사계절"], v:["나른","감성"], indie:true},
+  {t:"명동콜링", a:"카더가든", s:["사계절"], v:["감성","잔잔"], indie:true}
+];
+
+function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
+
+function desiredVibes(){
+  const set=new Set(); const cond=weatherText||""; const t=wx.temp,h=wx.humidity,w=wx.wind;
+  if(/비|소나기|이슬/.test(cond)){set.add("감성");set.add("위로");set.add("잔잔");}
+  else if(/눈/.test(cond)){set.add("잔잔");set.add("위로");}
+  else if(/흐림|안개/.test(cond)){set.add("잔잔");set.add("나른");}
+  else if(/맑음/.test(cond)){set.add("설렘");set.add("신남");}
+  else {set.add("설렘");set.add("잔잔");} // 구름 조금 등
+  if(t!=null){ if(t>=27){set.add("청량");set.add("드라이브");} else if(t<=5){set.add("위로");set.add("잔잔");} }
+  if(h!=null&&h>=70) set.add("나른");
+  if(w!=null&&w>=20){set.add("드라이브");set.add("청량");}
+  if(season==="여름")set.add("청량"); if(season==="가을")set.add("감성");
+  if(season==="겨울")set.add("위로"); if(season==="봄")set.add("설렘");
+  return set;
+}
+
+function airVariants(){
+  const t=wx.temp,h=wx.humidity,cond=weatherText||"";
+  if(/비|소나기|이슬/.test(cond)) return ["비 내리는 오후","빗소리 스미는 낮","촉촉이 젖은 오후"];
+  if(/눈/.test(cond)) return ["눈 내리는 한낮","하얗게 물든 오후"];
+  if(t!=null&&t>=27&&h!=null&&h>=70) return ["습도 높은 한낮","후덥지근한 오후","끈적한 여름 낮","무더운 한낮"];
+  if(t!=null&&t>=27) return ["햇살 뜨거운 한낮","여름 볕 내리는 낮","쨍한 여름 오후"];
+  if(t!=null&&t<=5) return ["쌀쌀한 한낮","찬 공기 감도는 오후"];
+  if(/흐림|안개/.test(cond)) return ["구름 낀 오후","흐릿한 한낮","안개 낀 낮"];
+  if(/구름/.test(cond)) return ["구름 사이로 햇살 비치는 낮","적당히 흐린 한낮","포근한 오후"];
+  return ["선선한 한낮","산뜻한 오후","맑은 낮"];
+}
+
+const CMT = {
+  청량:["{air}, {song}의 청량한 사운드로 잠깐 숨통 틔워봐요.","{air}에 시원하게 트인 이 곡 한 잔 어떠세요."],
+  나른:["나른한 {air}, {artist}의 목소리에 살짝 기대어 가요.","{air}과 잘 어울리는, 몽롱하고 편안한 곡이에요."],
+  위로:["{air}, {artist}가 조용히 어깨를 토닥여주는 곡이에요.","지친 마음에 스며드는, {air}에 필요한 위로예요."],
+  설렘:["{air}, 괜히 마음이 몽글해지는 곡이에요.","{air}에 듣기 좋은, 기분 좋아지는 한 곡."],
+  신남:["{air}, 볼륨 살짝 올리고 기분 전환하기 좋아요.","경쾌한 리듬이 {air}의 공기를 깨워줄 거예요."],
+  잔잔:["{air}, 잔잔하게 흘려듣기 좋은 곡이에요.","창밖 보며 듣기 좋은, {air}의 노래예요."],
+  드라이브:["{air}, 창문 열고 달리기 좋은 곡이에요.","바람에 실어 보내기 좋은, {air}의 드라이브 곡."],
+  감성:["{air}, 감성 한 스푼 얹고 싶은 순간의 곡이에요.","{artist} 특유의 무드가 오늘 공기와 잘 맞아요."]
+};
+
+function offlineSelect(){
+  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
+  const rnd=mulberry32(now.getFullYear()*1000+doy);
+  const want=desiredVibes();
+  const scored=SONG_LIBRARY.map(x=>{
+    const seasonOk=x.s.includes(season)||x.s.includes("사계절");
+    let sc=(x.s.includes(season)?2:0)+(x.s.includes("사계절")?0.5:0);
+    x.v.forEach(v=>{ if(want.has(v)) sc+=2; });
+    sc+=rnd()*1.2; // 날짜 시드 변주
+    return {x,sc,seasonOk};
+  }).filter(o=>o.seasonOk).sort((a,b)=>b.sc-a.sc);
+
+  const indie=scored.filter(o=>o.x.indie).slice(0,3);
+  const main=scored.filter(o=>!o.x.indie).slice(0,6);
+  let chosen=[...main,...indie];
+  // 총 9곡 맞추기
+  if(chosen.length<9){ for(const o of scored){ if(chosen.length>=9)break; if(!chosen.includes(o))chosen.push(o); } }
+  chosen=chosen.slice(0,9);
+  // 인디를 리스트 곳곳에 섞기
+  chosen.sort((a,b)=>b.sc-a.sc);
+
+  const usedCmt={};
+  const airs=airVariants();
+  const songs=chosen.map((o,i)=>{
+    const x=o.x;
+    const vibe=x.v.find(v=>want.has(v))||x.v[0];
+    const pool=CMT[vibe]||CMT["잔잔"];
+    const idx=(usedCmt[vibe]=(usedCmt[vibe]||0))%pool.length; usedCmt[vibe]++;
+    const air=airs[i%airs.length];
+    const comment=pool[idx].replace("{air}",air).replace("{song}",x.t).replace(/{artist}/g,x.a);
+    return {title:x.t, artist:x.a, indie:!!x.indie, comment};
+  });
+
+  const moods=[...want].slice(0,3);
+  const tempPart = wx.temp!=null ? `기온 ${wx.temp}도, ` : "";
+  const humidPart = wx.humidity!=null&&wx.humidity>=70 ? "습도가 제법 높은 나른한 날이네요. " : "";
+  const opening = `${M}월 ${D}일 ${DOW[now.getDay()]}, 절기로는 '${term.name}' 무렵의 울산 하늘은 ${weatherText||"오늘의 날씨"}입니다. ${tempPart}${humidPart}${term.mean.split(",")[0]}. 정오의 희망곡, 오늘도 이 노래들과 함께 여러분 곁을 지킬게요.`;
+
+  return {opening_ment:opening, mood_keywords:moods, songs};
+}
+// ======================================================================
+
+// ---------- 발매 대조 (Apple Music / iTunes Search, JSONP) ----------
+function normKey(s){
+  return String(s||"").toLowerCase()
+    .replace(/\(.*?\)|\[.*?\]|【.*?】/g,"")   // 괄호 안 제거
+    .replace(/feat.*|with .*|ft\..*/gi,"")     // 피처링 표기 제거
+    .replace(/[\s\-_.,'"!?~·・&]/g,"");         // 공백·기호 제거
+}
+function itunesLookup(artist,title){
+  return new Promise(resolve=>{
+    const cb="itcb_"+Math.random().toString(36).slice(2);
+    const term=encodeURIComponent(artist+" "+title);
+    const el=document.createElement("script");
+    let done=false;
+    const finish=(v)=>{if(done)return;done=true;try{delete window[cb];}catch(_){}
+      if(el.parentNode)el.parentNode.removeChild(el);resolve(v);};
+    window[cb]=(data)=>{
+      const results=(data&&data.results)||[];
+      const nt=normKey(title), na=normKey(artist);
+      const hit=results.find(r=>{
+        const rt=normKey(r.trackName), ra=normKey(r.artistName);
+        const titleOk = rt && (rt.includes(nt)||nt.includes(rt));
+        const artistOk = ra && (ra.includes(na)||na.includes(ra));
+        return titleOk && artistOk;
+      });
+      if(hit) finish({ok:true,artist:hit.artistName,track:hit.trackName,album:hit.collectionName,url:hit.trackViewUrl});
+      else finish({ok:false});
+    };
+    el.onerror=()=>finish(null);            // 네트워크 실패 → 알 수 없음
+    el.src=`https://itunes.apple.com/search?term=${term}&media=music&entity=song&limit=8&callback=${cb}`;
+    document.head.appendChild(el);
+    setTimeout(()=>finish(null),6000);       // 타임아웃 → 알 수 없음
+  });
+}
+
+function render(out, source){
+  const songs=Array.isArray(out.songs)?out.songs:[];
+  const moods=(out.mood_keywords||[]).map(m=>`<span class="mood">#${esc(m)}</span>`).join("");
+  const banner = source==="offline"
+    ? `<div class="banner">🔌 AI 연결이 없어 <b>내장 선곡 엔진</b>으로 구성했어요. (라이브러리 기반 · 무드 매칭)</div>`
+    : "";
+  let html=banner+`
+    <div class="opening">
+      <p class="lbl">오늘의 오프닝</p>
+      <p>${esc(out.opening_ment)}</p>
+      <div class="moods">${moods}</div>
+    </div>
+    <div class="cue-head">
+      <h2>오늘의 선곡표</h2>
+      <span id="cue-sub">총 ${songs.length}곡 · 울산 ${esc(weatherText||"")} · 발매 대조 중…</span>
+    </div>`;
+  songs.forEach((s,i)=>{
+    const indie = s.indie===true;
+    const badge = indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "";
+    html+=`
+      <div class="track ${indie?'is-indie':''}" style="animation-delay:${i*70}ms">
+        <div class="no">${String(i+1).padStart(2,"0")}</div>
+        <div class="body">
+          <div class="song">${esc(s.title)} <span class="artist">— ${esc(s.artist)}</span>${badge}<span class="chk pending" id="chk-${i}" title="발매 확인 중">···</span></div>
+          <div class="comment">${esc(s.comment)}</div>
+        </div>
+      </div>`;
+  });
+  html+=`<button class="again" id="again">🔄 다시 선곡하기</button>`;
+  document.getElementById("result").innerHTML=html;
+  document.getElementById("again").addEventListener("click",generate);
+  verifyAll(songs);
+}
+
+async function verifyAll(songs){
+  let okCount=0, doneCount=0;
+  await Promise.all(songs.map((s,i)=>
+    itunesLookup(s.artist,s.title).then(r=>{
+      const chk=document.getElementById("chk-"+i);
+      if(!chk) return;
+      chk.classList.remove("pending");
+      if(r&&r.ok){
+        okCount++;
+        chk.classList.remove("unv");
+        chk.textContent="✓";
+        chk.title=`발매 확인됨 · ${r.album||"Apple Music"}`;
+      }else if(r&&r.ok===false){
+        chk.classList.add("unv");
+        chk.textContent="?";
+        chk.title="Apple Music에서 정확히 확인 안 됨 · 방송 전 확인 권장";
+      }else{
+        chk.classList.add("unk");
+        chk.textContent="–";
+        chk.title="발매 정보 조회 실패 · 확인 권장";
+      }
+      doneCount++;
+    })
+  ));
+  const sub=document.getElementById("cue-sub");
+  if(sub) sub.textContent=`총 ${songs.length}곡 · 울산 ${weatherText||""} · 발매 확인 ${okCount}/${songs.length}곡`;
+}
+
+document.getElementById("go").addEventListener("click",generate);
+</script>

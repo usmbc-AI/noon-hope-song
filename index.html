@@ -412,19 +412,20 @@ function jsonp(url,timeout=7000){
 }
 
 // ---------- ① 후보 곡 풀 (iTunes) ----------
-// 시대·장르를 넓히기 위한 에버그린 국내 아티스트 (차트 아티스트와 합쳐서 사용)
-const EVERGREEN_ARTISTS = [
-  "아이유","이문세","성시경","폴킴","멜로망스","헤이즈","윤종신","이적","자우림",
-  "잔나비","자이언티","크러쉬","딘","산울림","넬","볼빨간사춘기","10CM","백예린",
-  "검정치마","혁오","새소년","페퍼톤스","브로콜리너마저","언니네 이발관","장기하와 얼굴들",
-  "소란","옥상달빛","ADOY","죠지","카더가든","적재","선우정아","김광석","이소라",
-  "어반자카파","스탠딩 에그","규현","정승환","다비치","케이시","프롬","데이브레이크","하림","김동률"
+// 후보 아티스트 소스: ① 애플 차트(메이저·실시간 인기, 비중 큼) ② 메이저 에버그린(명곡 보장, 소량) ③ 인디(숨은 명곡)
+// ② 국내 메이저 에버그린 — 명곡 보장용, 소량만 섞음
+const MAJOR_EVERGREEN = [
+  "아이유","이문세","성시경","폴킴","멜로망스","헤이즈","윤종신","이적","김동률","자이언티",
+  "크러쉬","백예린","볼빨간사춘기","10CM","어반자카파","규현","정승환","다비치","이소라","김광석"
 ];
-// 인디 배지용 아티스트 집합
-const INDIE_ARTISTS = new Set([
-  "검정치마","혁오","새소년","페퍼톤스","브로콜리너마저","언니네 이발관","장기하와 얼굴들",
-  "소란","옥상달빛","ADOY","죠지","카더가든","적재","실리카겔","잔나비"
-]);
+// ③ 국내 인디/언더그라운드 — 차트엔 잘 안 뜨므로 별도 확보(DJ의 '숨은 명곡 디깅')
+const INDIE_POOL = [
+  "검정치마","혁오","새소년","페퍼톤스","브로콜리너마저","언니네 이발관","장기하와 얼굴들","소란",
+  "옥상달빛","ADOY","죠지","카더가든","적재","실리카겔","잔나비","선우정아","쏜애플","김사월",
+  "이랑","오지은","이승윤","한로로","프롬","데이브레이크","스탠딩 에그","하림"
+];
+// 인디 배지·구분용 집합
+const INDIE_ARTISTS = new Set(INDIE_POOL);
 // 해외 팝 에버그린 아티스트 (US 차트와 합쳐서 사용) — 잔잔~산뜻 폭넓게
 const POP_ARTISTS = [
   "Bruno Mars","Ed Sheeran","Taylor Swift","Coldplay","Maroon 5","Adele","Sia","Charlie Puth",
@@ -463,8 +464,12 @@ async function buildPool(){
   const shuffle=arr=>{const a=(arr||[]).slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;};
 
   const chart=await fetchChart();
-  const krArtists=[...new Set([...shuffle(chart.artists).slice(0,9), ...shuffle(EVERGREEN_ARTISTS).slice(0,13)])].slice(0,20);
-  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,4), ...shuffle(POP_ARTISTS).slice(0,6)])].slice(0,8);
+  // 국내: 차트(메이저·인기) 비중 크게 + 메이저 에버그린 소량 + 인디 별도 확보(숨은 명곡)
+  const krChart = shuffle(chart.artists).slice(0,11);
+  const krMajor = shuffle(MAJOR_EVERGREEN).slice(0,3);
+  const krIndie = shuffle(INDIE_POOL).slice(0,6);
+  const krArtists=[...new Set([...krChart, ...krMajor, ...krIndie])].slice(0,20);
+  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,4), ...shuffle(POP_ARTISTS).slice(0,5)])].slice(0,8);
 
   const seen=new Set(); const pool=[];
   const collect=(dataArr, origin)=>{
@@ -553,7 +558,7 @@ async function aiSelect(candidates, opts={}){
   const need=opts.need||TOTAL;
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({context, kept, need, total:TOTAL,
-      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin}))})});
+      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:INDIE_ARTISTS.has(s.artist)}))})});
   if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||("select "+r.status)); }
   return await r.json();
 }

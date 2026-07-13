@@ -393,13 +393,32 @@ async function fetchChart(){
 }
 function itunesArtist(a, country){
   const lang = country==="KR" ? "ko_kr" : "en_us";
-  return jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(a)}&country=${country}&media=music&entity=song&attribute=artistTerm&limit=16&lang=${lang}`);
+  return jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(a)}&country=${country}&media=music&entity=song&attribute=artistTerm&limit=25&lang=${lang}`);
+}
+
+// iTunes 요청 폭주(403/429) 방지: 만든 곡 풀을 12시간 브라우저 캐시
+function loadPoolCache(){
+  try{ const o=JSON.parse(localStorage.getItem("pool:v2")||"null");
+    if(o && (Date.now()-o.ts) < 12*3600e3 && Array.isArray(o.pool) && o.pool.length>=20) return o.pool;
+  }catch(_){}
+  return null;
+}
+function savePoolCache(pool){
+  try{ localStorage.setItem("pool:v2", JSON.stringify({ts:Date.now(), pool:pool.slice(0,320)})); }catch(_){}
 }
 
 async function buildPool(){
+  const cached=loadPoolCache();
+  if(cached) return cached;
+
+  // 날짜 시드로 아티스트를 섞어 매번(하루 단위) 다른 조합 사용 → 다양성 유지 + 요청 수 절감
+  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
+  const rnd=mulberry32(now.getFullYear()*1000+doy+7);
+  const shuffle=arr=>{const a=(arr||[]).slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;};
+
   const chart=await fetchChart();
-  const krArtists=[...new Set([...(chart.artists||[]), ...EVERGREEN_ARTISTS])].slice(0,36);
-  const popArtists=[...new Set([...(chart.popArtists||[]), ...POP_ARTISTS])].slice(0,24);
+  const krArtists=[...new Set([...shuffle(chart.artists).slice(0,6), ...shuffle(EVERGREEN_ARTISTS).slice(0,6)])].slice(0,12);
+  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,3), ...shuffle(POP_ARTISTS).slice(0,4)])].slice(0,6);
 
   const seen=new Set(); const pool=[];
   const collect=(dataArr, origin)=>{
@@ -418,8 +437,11 @@ async function buildPool(){
       });
     });
   };
-  collect(await mapLimit(krArtists,8,a=>itunesArtist(a,"KR")), "kr");
-  collect(await mapLimit(popArtists,8,a=>itunesArtist(a,"US")), "pop");
+  // 동시 요청 3으로 완화(iTunes 분당 제한 회피)
+  collect(await mapLimit(krArtists,3,a=>itunesArtist(a,"KR")), "kr");
+  collect(await mapLimit(popArtists,3,a=>itunesArtist(a,"US")), "pop");
+
+  if(pool.length>=12) savePoolCache(pool);
   return pool;
 }
 

@@ -131,6 +131,7 @@
     vertical-align:middle;letter-spacing:.02em
   }
   .digbadge.popbadge{background:var(--coral)}
+  .digbadge.charthit{background:#2E6FB0}
   .track.is-indie{background:linear-gradient(90deg,rgba(246,166,9,.08),transparent 70%)}
   .track.is-indie .no{color:var(--ink)}
   .track .meta{font-size:11.5px;color:var(--ink-soft);opacity:.85;margin-top:3px}
@@ -492,6 +493,22 @@ async function buildPool(){
   collect(await mapLimit(krArtists,3,a=>itunesArtist(a,"KR")), "kr");
   collect(await mapLimit(popArtists,3,a=>itunesArtist(a,"US")), "pop");
 
+  // 현재 인기차트 상위곡(아이돌 히트) 확보 — 선곡에 최소 1곡 보장하기 위함
+  const topSongs=(chart.songs||[]).slice(0,6);
+  const topData=await mapLimit(topSongs,3,s=>
+    jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(s.artist+" "+s.title)}&country=KR&media=music&entity=song&limit=2&lang=ko_kr`));
+  const topKeys=new Set();
+  topData.forEach(d=>{
+    const r=((d&&d.results)||[])[0]; if(!r||!r.trackName||!r.artistName)return;
+    const k=normKey(r.trackName)+"|"+normKey(r.artistName); topKeys.add(k);
+    if(!seen.has(k)){ seen.add(k); pool.push({
+      title:r.trackName, artist:r.artistName, origin:"kr", chartTop:true,
+      album:r.collectionName||"", genre:r.primaryGenreName||"", year:(r.releaseDate||"").slice(0,4),
+      artwork:(r.artworkUrl100||"").replace("100x100","120x120"), url:r.trackViewUrl||"", tags:[]
+    }); }
+  });
+  pool.forEach(p=>{ if(topKeys.has(normKey(p.title)+"|"+normKey(p.artist))) p.chartTop=true; });
+
   if(pool.length>=12) savePoolCache(pool);
   return pool;
 }
@@ -514,10 +531,12 @@ function prefilter(pool,n,salt=0){
     for(const s of arr){ const c=per[s.artist]||0; if(c>=2)continue; per[s.artist]=c+1; out.push(s); if(out.length>=cnt)break; }
     return out;
   };
+  const tops=shuffle(pool.filter(s=>s.chartTop)).slice(0,2); // 차트 상위곡 우선 확보
+  const topKeys=new Set(tops.map(keyOfSong));
   const pop=shuffle(pool.filter(s=>s.origin==="pop"));
-  const kr =shuffle(pool.filter(s=>s.origin!=="pop"));
+  const kr =shuffle(pool.filter(s=>s.origin!=="pop" && !topKeys.has(keyOfSong(s))));
   const nPop=Math.min(pop.length, Math.round(n*0.35)); // 팝 후보 ~35% (최종 3~4곡 여유 확보)
-  const picked=[...pickDiverse(pop,nPop), ...pickDiverse(kr,n-nPop)];
+  const picked=[...tops, ...pickDiverse(pop,nPop), ...pickDiverse(kr, Math.max(0,n-nPop-tops.length))];
   return shuffle(picked);
 }
 
@@ -558,7 +577,7 @@ async function aiSelect(candidates, opts={}){
   const need=opts.need||TOTAL;
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({context, kept, need, total:TOTAL,
-      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:INDIE_ARTISTS.has(s.artist)}))})});
+      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:INDIE_ARTISTS.has(s.artist),chart:!!s.chartTop}))})});
   if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||("select "+r.status)); }
   return await r.json();
 }
@@ -574,6 +593,7 @@ function attachMeta(out,pool){
       title:s.title, artist, origin,
       pop: origin==="pop",
       indie: origin!=="pop" && (s.indie===true || INDIE_ARTISTS.has(artist)),
+      chartTop: m?!!m.chartTop:false,
       comment: s.reason||s.comment||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]
@@ -625,6 +645,20 @@ async function runSelection(kept){
 
     const songs=[...kept, ...fresh].slice(0,TOTAL);
     if(!songs.length) throw new Error("AI 선곡 결과가 비었어요.");
+
+    // 차트 상위곡(아이돌 히트) 최소 1곡 보장 (AI가 안 넣었으면 주입)
+    if(!songs.some(s=>s.chartTop)){
+      const used=new Set(songs.map(s=>normKey(s.artist)));
+      const cand = pool.find(s=> s.chartTop && !used.has(normKey(s.artist)) && !seenKeys.has(keyOfSong(s)))
+                || pool.find(s=> s.chartTop && !used.has(normKey(s.artist)));
+      if(cand){
+        const inj={title:cand.title,artist:cand.artist,origin:"kr",pop:false,indie:false,chartTop:true,
+          comment:"지금 인기차트 상위에 오른 곡이에요. 오늘의 선곡에 대중적인 활기를 한 스푼 더했어요.",
+          genre:cand.genre,year:cand.year,album:cand.album,artwork:cand.artwork,url:cand.url,tags:cand.tags||[]};
+        let ri=-1; for(let i=songs.length-1;i>=kept.length;i--){ if(!songs[i].chartTop){ri=i;break;} }
+        if(ri>=0) songs[ri]=inj; else if(songs.length<TOTAL) songs.push(inj);
+      }
+    }
     currentOut={
       opening_ment: currentOut?currentOut.opening_ment:aiOut.opening_ment,
       mood_keywords: currentOut?currentOut.mood_keywords:aiOut.mood_keywords,
@@ -663,7 +697,8 @@ function render(out, short){
   songs.forEach((s,i)=>{
     const indie = s.indie===true;
     const badge = (indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "")
-                + (s.pop ? `<span class="digbadge popbadge">🌍 팝</span>` : "");
+                + (s.pop ? `<span class="digbadge popbadge">🌍 팝</span>` : "")
+                + (s.chartTop ? `<span class="digbadge charthit">📈 차트 HIT</span>` : "");
     const art = s.artwork ? `<img class="art" src="${esc(s.artwork)}" alt="" loading="lazy">` : "";
     const metaBits=[s.genre,s.year,s.album].filter(Boolean).map(esc).join(" · ");
     const meta = metaBits ? `<div class="meta">${metaBits}</div>` : "";

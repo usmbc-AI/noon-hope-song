@@ -43,7 +43,7 @@ function buildPrompt(ctx, candidates, kept, need, total) {
       const tags = (c.tags || []).length ? ` · 태그: ${c.tags.join(", ")}` : "";
       const genre = c.genre ? ` · 장르: ${c.genre}` : "";
       const year = c.year ? ` · ${c.year}` : "";
-      const label = c.origin === "pop" ? "[팝]" : (c.indie ? "[인디]" : "[국내]");
+      const label = c.origin === "pop" ? "[팝]" : (c.chart ? "[차트]" : (c.indie ? "[인디]" : "[국내]"));
       return `${i + 1}. ${label} ${c.title} — ${c.artist}${genre}${year}${tags}`;
     })
     .join("\n");
@@ -77,6 +77,7 @@ function buildPrompt(ctx, candidates, kept, need, total) {
 2) 아래 [후보 곡 목록]에서만 **정확히 ${need}곡**을 고르세요. 목록에 없는 곡은 절대 만들지 마세요.
    - title/artist는 목록에 적힌 그대로(철자·표기 동일) 사용하세요.
    - **서로 다른 아티스트여야 합니다** (한 가수의 곡을 2개 이상 넣지 마세요).${kept.length ? " 확정곡의 아티스트도 피하세요." : ""}
+   - **[차트] 표시된 '현재 인기차트 상위곡'을 반드시 1곡 이상 포함하세요.** (아이돌·댄스 히트곡 환영 — 대중성 확보용. 오늘 무드와 크게 어긋나지 않으면 넣으세요.)
    - **[인디] 표시된 '숨은 명곡'을 2~3곡 반드시 포함하세요.** (차트 밖의 좋은 곡을 발굴하는 것이 DJ의 역량입니다.) 그 곡은 indie:true 로 표시하고, reason에 왜 숨은 명곡인지 살짝 소개하듯 써주세요.
    - 너무 무겁거나 격한 곡은 피하고, 한낮에 어울리게 발라드·미디엄·감성 팝을 적절히 섞으세요.
    - **해외 팝 비율**: 확정곡을 포함한 최종 총 ${total}곡 중 [팝]이 3~4곡이 되도록, 확정곡의 [팝] 개수를 고려해 이번에 고를 [팝] 수를 정하세요.

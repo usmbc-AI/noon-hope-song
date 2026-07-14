@@ -292,12 +292,14 @@ function currentSolarTerm(mo,da){
   return cur;
 }
 const term = currentSolarTerm(M,D);
+// 절기는 '절기 당일'에만 기념하듯 사용 (매일 반복 방지)
+const isTermDay = SOLAR_TERMS.some(t=>t.m===M && t.d===D);
 
 document.getElementById("dow").textContent = DOW[now.getDay()];
 document.getElementById("date").textContent =
   `${now.getFullYear()}년 ${M}월 ${D}일` + (holiday?` · ${holiday}`:"");
-document.getElementById("season").textContent = `${season} · ${term.name}`;
-document.getElementById("season").title = `${term.name} — ${term.mean}`;
+document.getElementById("season").textContent = season + (isTermDay?` · ${term.name}`:"");
+if(isTermDay) document.getElementById("season").title = `${term.name} — ${term.mean}`;
 
 // ---------- 날씨(Open-Meteo) ----------
 const WMO = {
@@ -527,7 +529,7 @@ async function fetchTags(list){
 async function aiSelect(candidates, opts={}){
   const context={
     date:`${now.getFullYear()}년 ${M}월 ${D}일`, dow:DOW[now.getDay()],
-    season, term:term.name, termMeaning:term.mean, holiday,
+    season, term:(isTermDay?term.name:null), termMeaning:(isTermDay?term.mean:null), holiday,
     weather:weatherText, weatherDetail, weatherAlert,
     targetMood:[...desiredVibes()]
   };

@@ -458,62 +458,17 @@ function savePoolCache(pool){
   try{ localStorage.setItem("pool:v3", JSON.stringify({ts:Date.now(), pool:pool.slice(0,500)})); }catch(_){}
 }
 
+// 곡 풀은 서버(/api/pool)에서 수집 — 브라우저가 iTunes를 직접 안 부르므로
+// 기기·네트워크·광고차단·IP제한 문제 없이 어디서나 동작. 서버 결과는 엣지 캐시됨.
 async function buildPool(){
   const cached=loadPoolCache();
   if(cached) return cached;
-
-  // 날짜 시드로 아티스트를 섞어 매번(하루 단위) 다른 조합 사용 → 다양성 유지 + 요청 수 절감
-  const doy=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
-  const rnd=mulberry32(now.getFullYear()*1000+doy+7);
-  const shuffle=arr=>{const a=(arr||[]).slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;};
-
-  const chart=await fetchChart();
-  // 국내: 차트(메이저·인기) 비중 크게 + 메이저 에버그린 소량 + 인디 별도 확보(숨은 명곡)
-  const krChart = shuffle(chart.artists).slice(0,11);
-  const krMajor = shuffle(MAJOR_EVERGREEN).slice(0,3);
-  const krIndie = shuffle(INDIE_POOL).slice(0,6);
-  const krArtists=[...new Set([...krChart, ...krMajor, ...krIndie])].slice(0,20);
-  const popArtists=[...new Set([...shuffle(chart.popArtists).slice(0,4), ...shuffle(POP_ARTISTS).slice(0,5)])].slice(0,8);
-
-  const seen=new Set(); const pool=[];
-  const collect=(dataArr, origin)=>{
-    dataArr.forEach(d=>{
-      ((d&&d.results)||[]).forEach(r=>{
-        if(!r.trackName||!r.artistName)return;
-        const k=normKey(r.trackName)+"|"+normKey(r.artistName);
-        if(seen.has(k))return; seen.add(k);
-        pool.push({
-          title:r.trackName, artist:r.artistName, origin,
-          album:r.collectionName||"", genre:r.primaryGenreName||"",
-          year:(r.releaseDate||"").slice(0,4),
-          artwork:(r.artworkUrl100||"").replace("100x100","120x120"),
-          url:r.trackViewUrl||"", tags:[]
-        });
-      });
-    });
-  };
-  // 동시 요청 3으로 완화(iTunes 분당 제한 회피)
-  collect(await mapLimit(krArtists,3,a=>itunesArtist(a,"KR")), "kr");
-  collect(await mapLimit(popArtists,3,a=>itunesArtist(a,"US")), "pop");
-
-  // 현재 인기차트 상위곡(아이돌 히트) 확보 — 선곡에 최소 1곡 보장하기 위함
-  const topSongs=(chart.songs||[]).slice(0,6);
-  const topData=await mapLimit(topSongs,3,s=>
-    jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(s.artist+" "+s.title)}&country=KR&media=music&entity=song&limit=2&lang=ko_kr`));
-  const topKeys=new Set();
-  topData.forEach(d=>{
-    const r=((d&&d.results)||[])[0]; if(!r||!r.trackName||!r.artistName)return;
-    const k=normKey(r.trackName)+"|"+normKey(r.artistName); topKeys.add(k);
-    if(!seen.has(k)){ seen.add(k); pool.push({
-      title:r.trackName, artist:r.artistName, origin:"kr", chartTop:true,
-      album:r.collectionName||"", genre:r.primaryGenreName||"", year:(r.releaseDate||"").slice(0,4),
-      artwork:(r.artworkUrl100||"").replace("100x100","120x120"), url:r.trackViewUrl||"", tags:[]
-    }); }
-  });
-  pool.forEach(p=>{ if(topKeys.has(normKey(p.title)+"|"+normKey(p.artist))) p.chartTop=true; });
-
-  if(pool.length>=12) savePoolCache(pool);
-  return pool;
+  try{
+    const j=await (await fetch("/api/pool")).json();
+    const pool=Array.isArray(j.pool)?j.pool:[];
+    if(pool.length>=12) savePoolCache(pool);
+    return pool;
+  }catch(_){ return []; }
 }
 
 // ── 세션 상태 (재선곡·중복 방지용) ──
@@ -580,7 +535,7 @@ async function aiSelect(candidates, opts={}){
   const need=opts.need||TOTAL;
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({context, kept, need, total:TOTAL,
-      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:INDIE_ARTISTS.has(s.artist),chart:!!s.chartTop}))})});
+      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:(s.indie!=null?!!s.indie:INDIE_ARTISTS.has(s.artist)),chart:!!s.chartTop}))})});
   if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||("select "+r.status)); }
   return await r.json();
 }
@@ -595,7 +550,7 @@ function attachMeta(out,pool){
     return {
       title:s.title, artist, origin,
       pop: origin==="pop",
-      indie: origin!=="pop" && (s.indie===true || INDIE_ARTISTS.has(artist)),
+      indie: origin!=="pop" && (s.indie===true || (m&&m.indie) || INDIE_ARTISTS.has(artist)),
       chartTop: m?!!m.chartTop:false,
       comment: s.reason||s.comment||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",

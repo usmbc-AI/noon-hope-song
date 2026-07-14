@@ -633,8 +633,8 @@ async function runSelection(kept){
     const songs=[...kept, ...fresh].slice(0,TOTAL);
     if(!songs.length) throw new Error("AI 선곡 결과가 비었어요.");
 
-    // 차트 상위곡(아이돌 히트) 최소 1곡 보장 (AI가 안 넣었으면 주입)
-    if(!songs.some(s=>s.chartTop)){
+    // 차트 상위곡(아이돌 히트) 최소 1곡 보장 (AI가 안 넣었으면 주입) — 자동 모드에서만
+    if(!currentMood && !songs.some(s=>s.chartTop)){
       const used=new Set(songs.map(s=>primaryArtistKey(s.artist)));
       const cand = pool.find(s=> s.chartTop && !used.has(primaryArtistKey(s.artist)) && !seenKeys.has(keyOfSong(s)))
                 || pool.find(s=> s.chartTop && !used.has(primaryArtistKey(s.artist)));

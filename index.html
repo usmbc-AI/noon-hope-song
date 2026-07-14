@@ -505,7 +505,7 @@ function prefilter(pool,n,salt=0){
   const shuffle=arr=>{ for(let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; };
   const pickDiverse=(arr,cnt)=>{
     const per={}; const out=[];
-    for(const s of arr){ const k=primaryArtistKey(s.artist); const c=per[k]||0; if(c>=2)continue; per[k]=c+1; out.push(s); if(out.length>=cnt)break; }
+    for(const s of arr){ const k=primaryArtistKey(s.artist); const c=per[k]||0; if(c>=3)continue; per[k]=c+1; out.push(s); if(out.length>=cnt)break; }
     return out;
   };
   const tops=shuffle(pool.filter(s=>s.chartTop)).slice(0,2); // 차트 상위곡 우선 확보
@@ -620,7 +620,9 @@ async function runSelection(kept){
     const avail=pool.filter(s=> !seenKeys.has(keyOfSong(s)) && !keptArtists.has(primaryArtistKey(s.artist)));
     if(!avail.length) throw new Error("새로 추천할 곡이 더 없어요. (후보를 거의 다 썼어요) — GO 버튼으로 처음부터 다시 시작해 보세요.");
 
-    const shortlist=prefilter(avail, Math.max(need*6,40), seenKeys.size+1);
+    // 무드/키워드마다 다른 후보군을 보도록 salt에 무드 반영(자동↔수동, 키워드별 차별화)
+    const moodSalt=(currentMood||[]).join(",").split("").reduce((a,c)=>a+c.charCodeAt(0),0);
+    const shortlist=prefilter(avail, Math.max(need*8,60), seenKeys.size + moodSalt + 1);
     setLoad("곡의 무드 태그를 살피는 중…");
     await fetchTags(shortlist);
     setLoad(kept.length?"나머지를 새 곡으로 바꾸는 중…":"오늘 무드에 맞는 곡을 고르는 중…");

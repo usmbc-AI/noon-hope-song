@@ -436,27 +436,12 @@ function jsonp(url,timeout=7000){
 }
 
 // ---------- ① 후보 곡 풀 (iTunes) ----------
-// 후보 아티스트 소스: ① 애플 차트(메이저·실시간 인기, 비중 큼) ② 메이저 에버그린(명곡 보장, 소량) ③ 인디(숨은 명곡)
-// ② 국내 메이저 에버그린 — 명곡 보장용, 소량만 섞음
-const MAJOR_EVERGREEN = [
-  "아이유","이문세","성시경","폴킴","멜로망스","헤이즈","윤종신","이적","김동률","자이언티",
-  "크러쉬","백예린","볼빨간사춘기","10CM","어반자카파","규현","정승환","다비치","이소라","김광석"
-];
-// ③ 국내 인디/언더그라운드 — 차트엔 잘 안 뜨므로 별도 확보(DJ의 '숨은 명곡 디깅')
-const INDIE_POOL = [
+// 곡 풀 아티스트 목록의 단일 출처는 서버(api/pool.js). 아래 INDIE_ARTISTS는 클라이언트 배지 표시용 폴백만.
+const INDIE_ARTISTS = new Set([
   "검정치마","혁오","새소년","페퍼톤스","브로콜리너마저","언니네 이발관","장기하와 얼굴들","소란",
   "옥상달빛","ADOY","죠지","카더가든","적재","실리카겔","잔나비","선우정아","쏜애플","김사월",
   "이랑","오지은","이승윤","한로로","프롬","데이브레이크","스탠딩 에그","하림"
-];
-// 인디 배지·구분용 집합
-const INDIE_ARTISTS = new Set(INDIE_POOL);
-// 해외 팝 에버그린 아티스트 (US 차트와 합쳐서 사용) — 잔잔~산뜻 폭넓게
-const POP_ARTISTS = [
-  "Bruno Mars","Ed Sheeran","Taylor Swift","Coldplay","Maroon 5","Adele","Sia","Charlie Puth",
-  "Sam Smith","John Mayer","Jason Mraz","Norah Jones","Michael Bublé","Olivia Rodrigo","Dua Lipa",
-  "Sabrina Carpenter","Lauv","OneRepublic","Christina Perri","Jack Johnson","Corinne Bailey Rae","Bruno Major",
-  "Colbie Caillat","Sara Bareilles","Shawn Mendes","Daniel Caesar","HONNE","Rex Orange County"
-];
+]);
 
 async function fetchChart(){
   try{ return await (await fetch("/api/chart")).json(); }

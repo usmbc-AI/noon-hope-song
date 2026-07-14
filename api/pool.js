@@ -61,9 +61,9 @@ module.exports = async (req, res) => {
 
   const [krC, usC] = await Promise.all([chartFeed("kr",50), chartFeed("us",40)]);
 
-  // 국내 28명(차트15+메이저5+인디8) + 해외 팝 12명 = 총 40명
-  const krArtists = [...new Set([...shuffle(krC.artists).slice(0,15), ...shuffle(MAJOR_EVERGREEN).slice(0,5), ...shuffle(INDIE_POOL).slice(0,8)])].slice(0,28);
-  const popArtists = [...new Set([...shuffle(usC.artists).slice(0,6), ...shuffle(POP_ARTISTS).slice(0,6)])].slice(0,12);
+  // 차트 반영률↑: 국내 28명(차트19+메이저2+인디7) + 해외 팝 12명(차트8+에버그린4) = 총 40명
+  const krArtists = [...new Set([...shuffle(krC.artists).slice(0,19), ...shuffle(MAJOR_EVERGREEN).slice(0,2), ...shuffle(INDIE_POOL).slice(0,7)])].slice(0,28);
+  const popArtists = [...new Set([...shuffle(usC.artists).slice(0,8), ...shuffle(POP_ARTISTS).slice(0,4)])].slice(0,12);
 
   const seen=new Set(); const pool=[];
   const collect=(dataArr, origin)=>{

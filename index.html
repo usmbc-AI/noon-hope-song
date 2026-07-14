@@ -228,8 +228,8 @@
 
   <div class="manual">
     <div class="manual-or">— 또는, 진행자가 무드를 직접 정하고 싶다면 —</div>
-    <input id="moodInput" type="text" maxlength="60"
-      placeholder="예) 비 오는 날의 위로 · 설레는 봄 출근길 · 새벽 감성 드라이브">
+    <input id="moodInput" type="text" maxlength="80"
+      placeholder="키워드 최대 3개, 쉼표(,)로 구분 · 예) 비 오는 날, 드라이브, 새벽감성">
     <button class="cta ghost" id="goManual">🎙️ 이 무드로 선곡하기</button>
   </div>
 
@@ -589,9 +589,9 @@ async function generate(){ currentMood=null; seenKeys.clear(); currentOut=null; 
 // 진행자 직접 무드로 선곡 — 세션 새로 시작
 async function generateManual(){
   const el=document.getElementById("moodInput");
-  const v=(el.value||"").trim();
-  if(!v){ el.focus(); el.style.borderColor="var(--coral)"; el.placeholder="무드를 먼저 적어주세요! 예) 비 오는 날의 위로"; return; }
-  currentMood=v; seenKeys.clear(); currentOut=null; await runSelection([]);
+  const moods=(el.value||"").split(",").map(s=>s.trim()).filter(Boolean).slice(0,3); // 최대 3개(쉼표 구분)
+  if(!moods.length){ el.focus(); el.style.borderColor="var(--coral)"; el.placeholder="무드를 먼저 적어주세요! 예) 비 오는 날, 드라이브"; return; }
+  currentMood=moods; seenKeys.clear(); currentOut=null; await runSelection([]);
 }
 // 다시 선곡하기: 체크한 곡은 유지, 나머지를 새 곡으로 (이미 나온 곡 제외)
 async function reselect(){ await runSelection(getCheckedKept()); }
@@ -678,7 +678,7 @@ function render(out, short){
       <h2>오늘의 선곡표</h2>
       <span>총 ${songs.length}곡 · 울산 ${esc(weatherText||"")}</span>
     </div>
-    ${currentMood ? `<div class="mood-tag">🎙️ 진행자 무드: <b>${esc(currentMood)}</b></div>` : ""}
+    ${currentMood ? `<div class="mood-tag">🎙️ 진행자 무드: <b>${esc(currentMood.join(", "))}</b></div>` : ""}
     <div class="reroll-hint">💡 마음에 드는 곡을 <b>체크 ☑</b> 하고 아래 <b>다시 선곡하기</b>를 누르면, 체크한 곡은 <b>유지</b>하고 나머지를 <b>새 곡</b>으로 바꿔드려요. (이미 나온 곡은 다시 안 나와요)</div>`;
   songs.forEach((s,i)=>{
     const indie = s.indie===true;

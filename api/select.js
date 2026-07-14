@@ -54,6 +54,9 @@ function buildPrompt(ctx, candidates, kept, need, total) {
     .join("\n");
   const targetMood = Array.isArray(ctx.targetMood) && ctx.targetMood.length
     ? ctx.targetMood.join(", ") : "오늘 날씨와 계절에 맞는 무드";
+  const userMoods = (Array.isArray(ctx.userMood) ? ctx.userMood : (ctx.userMood ? [ctx.userMood] : []))
+    .map(m => String(m).trim()).filter(Boolean).slice(0, 3);
+  const hasUserMood = userMoods.length > 0;
   kept = Array.isArray(kept) ? kept : [];
   const keptList = kept.map((k, i) => `${i + 1}. ${k.origin === "pop" ? "[팝]" : "[국내]"} ${k.title} — ${k.artist}`).join("\n");
   const keptBlock = kept.length
@@ -72,10 +75,10 @@ function buildPrompt(ctx, candidates, kept, need, total) {
 - 기상 특보/주의: ${ctx.weatherAlert || "특이사항 없음"}
 
 [오늘의 타깃 무드]
-${ctx.userMood
-  ? `- 🎙️ 진행자가 직접 정한 무드/테마: "${ctx.userMood}"
-- 이 무드/테마를 **최우선**으로 삼아, 여기에 딱 어울리는 곡을 고르세요. 오늘 날씨는 참고만 하고, 무드와 충돌하면 진행자 무드를 따르세요.
-- opening_ment도 이 무드/테마의 정서를 살려서 시작하세요.`
+${hasUserMood
+  ? `- 🎙️ 진행자가 직접 정한 무드 키워드(${userMoods.length}개): ${userMoods.map(m => `"${m}"`).join(", ")}
+- 이 키워드들을 **모두 아우르도록** 최우선으로 선곡하세요. (키워드가 여러 개면 곡마다 어울리는 키워드가 골고루 반영되게 섞으세요.) 오늘 날씨는 참고만 하고, 무드와 충돌하면 진행자 무드를 따르세요.
+- opening_ment도 이 키워드들의 정서를 살려서 시작하세요.`
   : `- ${targetMood}
 - 이 무드를 최우선 기준으로 삼으세요. **후보에 있어도 오늘 무드와 어긋나는 곡(너무 격렬/침울/생뚱맞은 곡)은 넣지 마세요.** 애매하면 더 잘 맞는 곡으로 대체하세요.
 - **기상 특보/주의가 있으면 그 날씨의 정서를 선곡·멘트에 적극 반영하세요.** (예: 폭염→시원하게 식혀줄 곡이나 여름·열정 테마 / 한파→따뜻하게 감싸는 곡 / 호우→빗소리 어울리는 감성곡 / 대설→포근하고 눈 내리는 무드 / 황사·미세먼지→맑고 청량한 곡으로 답답함 환기 / 건조→촉촉하고 편안한 곡 / 태풍급→차분히 위로가 되는 곡)`}

@@ -139,6 +139,7 @@
   }
   .digbadge.popbadge{background:var(--coral)}
   .digbadge.charthit{background:#2E6FB0}
+  .digbadge.bridgebadge{background:#6C5CE7}
   .track.is-indie{background:linear-gradient(90deg,rgba(246,166,9,.08),transparent 70%)}
   .track.is-indie .no{color:var(--ink)}
   .track .meta{font-size:11.5px;color:var(--ink-soft);opacity:.85;margin-top:3px}
@@ -572,6 +573,7 @@ function attachMeta(out,pool){
       pop: origin==="pop",
       indie: origin!=="pop" && (s.indie===true || (m&&m.indie) || INDIE_ARTISTS.has(artist)),
       chartTop: m?!!m.chartTop:false,
+      bridge: s.bridge===true,
       comment: s.reason||s.comment||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]
@@ -684,7 +686,8 @@ function render(out, short){
     <div class="reroll-hint">💡 마음에 드는 곡을 <b>체크 ☑</b> 하고 아래 <b>다시 선곡하기</b>를 누르면, 체크한 곡은 <b>유지</b>하고 나머지를 <b>새 곡</b>으로 바꿔드려요. (이미 나온 곡은 다시 안 나와요)</div>`;
   songs.forEach((s,i)=>{
     const indie = s.indie===true;
-    const badge = (indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "")
+    const badge = (s.bridge ? `<span class="digbadge bridgebadge">🧩 키워드 종합</span>` : "")
+                + (indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "")
                 + (s.pop ? `<span class="digbadge popbadge">🌍 팝</span>` : "")
                 + (s.chartTop ? `<span class="digbadge charthit">📈 차트 HIT</span>` : "");
     const art = s.artwork ? `<img class="art" src="${esc(s.artwork)}" alt="" loading="lazy">` : "";

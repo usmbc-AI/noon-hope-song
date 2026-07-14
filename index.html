@@ -87,6 +87,13 @@
   .cta:active{transform:translateY(1px) scale(.995)}
   .cta:disabled{filter:grayscale(.3) brightness(.95);cursor:progress;opacity:.85}
   .cta .sub{display:block;font-family:"Gowun Dodum";font-size:12px;opacity:.9;margin-top:3px;letter-spacing:0}
+  .cta.ghost{background:#fff;color:var(--sun-deep);border:1.5px solid var(--sun);box-shadow:none;font-size:16px}
+  .cta.ghost:hover{background:#FFF9EE}
+  .manual{margin-top:14px;text-align:center}
+  .manual-or{font-size:12px;color:var(--ink-soft);opacity:.8;margin-bottom:10px}
+  #moodInput{width:100%;font-family:"Gowun Dodum";font-size:15px;padding:13px 14px;margin-bottom:8px;
+    border:1px solid var(--line-strong);border-radius:14px;background:#fff;color:var(--text);text-align:center}
+  #moodInput:focus{outline:none;border-color:var(--sun)}
 
   /* ── Loading ── */
   .loading{text-align:center;padding:34px 0;color:var(--ink-soft);display:none}
@@ -139,6 +146,8 @@
   .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .tagchip{font-size:10.5px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-soft);border-radius:999px;padding:1px 8px}
 
+  .mood-tag{font-size:13px;color:var(--ink);background:rgba(235,106,84,.12);border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;margin:8px 0 2px}
   .reroll-hint{font-size:12.5px;color:var(--ink-soft);background:rgba(246,166,9,.10);
     border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:10px 0 2px;line-height:1.55}
   .keepwrap{display:flex;align-items:flex-start;padding-top:3px;cursor:pointer}
@@ -216,6 +225,13 @@
   </div>
 
   <button class="cta" id="go">오늘의 선곡표 만들기 🌞</button>
+
+  <div class="manual">
+    <div class="manual-or">— 또는, 진행자가 무드를 직접 정하고 싶다면 —</div>
+    <input id="moodInput" type="text" maxlength="60"
+      placeholder="예) 비 오는 날의 위로 · 설레는 봄 출근길 · 새벽 감성 드라이브">
+    <button class="cta ghost" id="goManual">🎙️ 이 무드로 선곡하기</button>
+  </div>
 
   <div class="loading" id="loading">
     <div class="dial"></div>
@@ -477,6 +493,7 @@ async function buildPool(){
 let selPool=null;             // 세션 내 재사용 곡 풀
 const seenKeys=new Set();     // 지금까지 보여준 곡 (중복 방지)
 let currentOut=null;          // 현재 선곡 결과
+let currentMood=null;         // 진행자 직접 입력 무드(null이면 자동/날씨 기반)
 const TOTAL=9;                // 총 곡 수
 const keyOfSong=s=>normKey(s.title)+"|"+normKey(s.artist);
 async function getPool(){ if(selPool&&selPool.length) return selPool; selPool=await buildPool(); return selPool; }
@@ -531,7 +548,8 @@ async function aiSelect(candidates, opts={}){
     date:`${now.getFullYear()}년 ${M}월 ${D}일`, dow:DOW[now.getDay()],
     season, term:(isTermDay?term.name:null), termMeaning:(isTermDay?term.mean:null), holiday,
     weather:weatherText, weatherDetail, weatherAlert,
-    targetMood:[...desiredVibes()]
+    targetMood:[...desiredVibes()],
+    userMood: currentMood || null
   };
   const kept=(opts.kept||[]).map(s=>({title:s.title,artist:s.artist,origin:s.origin}));
   const need=opts.need||TOTAL;
@@ -566,8 +584,15 @@ function attachMeta(out,pool){
 }
 
 // ---------- 오케스트레이션 ----------
-// GO 버튼: 세션을 새로 시작(이전 기록 초기화)하고 전체 선곡
-async function generate(){ seenKeys.clear(); currentOut=null; await runSelection([]); }
+// GO 버튼: 자동(날씨 기반) — 세션 새로 시작
+async function generate(){ currentMood=null; seenKeys.clear(); currentOut=null; await runSelection([]); }
+// 진행자 직접 무드로 선곡 — 세션 새로 시작
+async function generateManual(){
+  const el=document.getElementById("moodInput");
+  const v=(el.value||"").trim();
+  if(!v){ el.focus(); el.style.borderColor="var(--coral)"; el.placeholder="무드를 먼저 적어주세요! 예) 비 오는 날의 위로"; return; }
+  currentMood=v; seenKeys.clear(); currentOut=null; await runSelection([]);
+}
 // 다시 선곡하기: 체크한 곡은 유지, 나머지를 새 곡으로 (이미 나온 곡 제외)
 async function reselect(){ await runSelection(getCheckedKept()); }
 function getCheckedKept(){
@@ -653,6 +678,7 @@ function render(out, short){
       <h2>오늘의 선곡표</h2>
       <span>총 ${songs.length}곡 · 울산 ${esc(weatherText||"")}</span>
     </div>
+    ${currentMood ? `<div class="mood-tag">🎙️ 진행자 무드: <b>${esc(currentMood)}</b></div>` : ""}
     <div class="reroll-hint">💡 마음에 드는 곡을 <b>체크 ☑</b> 하고 아래 <b>다시 선곡하기</b>를 누르면, 체크한 곡은 <b>유지</b>하고 나머지를 <b>새 곡</b>으로 바꿔드려요. (이미 나온 곡은 다시 안 나와요)</div>`;
   songs.forEach((s,i)=>{
     const indie = s.indie===true;
@@ -699,4 +725,6 @@ function desiredVibes(){
   return set;
 }
 document.getElementById("go").addEventListener("click",generate);
+document.getElementById("goManual").addEventListener("click",generateManual);
+document.getElementById("moodInput").addEventListener("keydown",e=>{ if(e.key==="Enter") generateManual(); });
 </script>

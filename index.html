@@ -467,13 +467,13 @@ function itunesArtist(a, country){
 
 // iTunes 요청 폭주(403/429) 방지: 만든 곡 풀을 12시간 브라우저 캐시
 function loadPoolCache(){
-  try{ const o=JSON.parse(localStorage.getItem("pool:v3")||"null");
+  try{ const o=JSON.parse(localStorage.getItem("pool:v4")||"null");
     if(o && (Date.now()-o.ts) < 12*3600e3 && Array.isArray(o.pool) && o.pool.length>=20) return o.pool;
   }catch(_){}
   return null;
 }
 function savePoolCache(pool){
-  try{ localStorage.setItem("pool:v3", JSON.stringify({ts:Date.now(), pool:pool.slice(0,500)})); }catch(_){}
+  try{ localStorage.setItem("pool:v4", JSON.stringify({ts:Date.now(), pool:pool.slice(0,500)})); }catch(_){}
 }
 
 // 곡 풀은 서버(/api/pool)에서 수집 — 브라우저가 iTunes를 직접 안 부르므로

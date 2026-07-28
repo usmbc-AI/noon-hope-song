@@ -667,18 +667,26 @@ async function ttsFetch(text,key){
   const url=URL.createObjectURL(await r.blob());
   ttsCache[key]=url; return url;
 }
-function ttsText(s){ return (s.comment||(s.title+" — "+s.artist)); } // 화면의 소개 글(이유)을 그대로 읽음
+const DJ_NAME = "제피론"; // AI세계에서 온 DJ 이름(외계어 느낌) — 바꾸려면 여기만 수정
+// 읽을 텍스트: 맨 첫 곡(idx 0)에만 인사말을 앞에 붙이고, 뒤엔 화면 소개 글 그대로
+function ttsText(s, idx){
+  const base = s.comment || (s.title+" — "+s.artist);
+  if(idx===0){
+    return `안녕하세요. 14차원을 넘어 이곳으로 온 ${DJ_NAME}이에요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${base}`;
+  }
+  return base;
+}
 function hashStr(str){ let h=0; for(let i=0;i<str.length;i++){ h=(Math.imul(31,h)+str.charCodeAt(i))|0; } return "t"+(h>>>0); }
-function ttsKey(s){ return hashStr(ttsText(s)); } // 읽을 텍스트 내용 기준 캐시(내용 바뀌면 새 음성 생성)
+function ttsKey(s, idx){ return hashStr(ttsText(s, idx)); } // 읽을 텍스트 내용 기준 캐시
 // 선곡 나오면 9곡 멘트를 미리 음성으로 뽑아 캐싱 → 버튼 누르면 즉시 재생(라이브 안전)
-function prerenderTTS(songs){ (songs||[]).forEach(s=>{ ttsFetch(ttsText(s), ttsKey(s)).catch(()=>{}); }); }
+function prerenderTTS(songs){ (songs||[]).forEach((s,i)=>{ ttsFetch(ttsText(s,i), ttsKey(s,i)).catch(()=>{}); }); }
 async function playDJ(idx, btn){
   const s=currentOut&&currentOut.songs[idx]; if(!s) return;
   if(curAudio){ try{curAudio.pause();}catch(_){} }
   document.querySelectorAll(".say").forEach(b=>{ if(!b.disabled) b.textContent="🔊"; });
   try{
     btn.disabled=true; btn.textContent="⏳";
-    const url=await ttsFetch(ttsText(s), ttsKey(s));
+    const url=await ttsFetch(ttsText(s,idx), ttsKey(s,idx));
     curAudio=new Audio(url);
     curAudio.onended=()=>{ btn.textContent="🔊"; };
     curAudio.onpause=()=>{ btn.textContent="🔊"; };

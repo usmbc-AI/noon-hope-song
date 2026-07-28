@@ -711,9 +711,7 @@ async function ttsBuffer(text){
   const buf=await getCtx().decodeAudioData(await r.arrayBuffer());
   bufCache[key]=buf; return buf;
 }
-function prerenderTTS(songs){
-  (songs||[]).forEach(s=>{ ttsBuffer(introLine(s)+commentText(s)).catch(()=>{}); ttsBuffer(greetText(s)).catch(()=>{}); });
-}
+// (미리생성 제거됨 — 비용 절감 위해 🔊 누를 때만 생성)
 
 let playToken=0, curNodes=[];
 function stopAll(){ curNodes.forEach(n=>{ try{n.stop();}catch(_){} }); curNodes=[]; }
@@ -794,7 +792,7 @@ function render(out, short){
   document.getElementById("result").innerHTML=html;
   document.getElementById("again").addEventListener("click",reselect);
   document.querySelectorAll(".say").forEach(b=>b.addEventListener("click",()=>playDJ(+b.dataset.idx,b)));
-  prerenderTTS(songs); // 곡 소개 음성 미리 뽑아두기
+  // 음성은 미리 생성하지 않고, 🔊 누를 때만 생성(비용 절감). 누른 곡은 캐시돼 이후 즉시 재생.
 }
 
 // desiredVibes: 오늘 날씨/계절 → 타깃 무드 키워드(선곡 AI에 힌트로 전달)

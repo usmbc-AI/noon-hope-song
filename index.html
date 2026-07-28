@@ -554,17 +554,21 @@ async function aiSelect(candidates, opts={}){
 // AI가 고른 곡에 풀의 메타데이터(앨범/장르/연도/아트워크/태그) 다시 붙이기
 function attachMeta(out,pool){
   const idx={}; pool.forEach(s=>{ idx[normKey(s.title)+"|"+normKey(s.artist)]=s; });
+  // 키워드 종합 배지는 '수동 모드 + 키워드 2개 이상'일 때만. 각 1곡만 인정.
+  const bridgeMode = Array.isArray(currentMood) && currentMood.length>=2;
+  let usedBridge=false, usedLight=false;
   out.songs=(out.songs||[]).map(s=>{
     const m=idx[normKey(s.title)+"|"+normKey(s.artist)];
     const artist=s.artist||(m?m.artist:"");
     const origin=m?m.origin:"";
+    const bridge = bridgeMode && s.bridge===true && !usedBridge; if(bridge) usedBridge=true;
+    const bridgeLight = bridgeMode && s.bridgeLight===true && !usedLight; if(bridgeLight) usedLight=true;
     return {
       title:s.title, artist, origin,
       pop: origin==="pop",
       indie: origin!=="pop" && (s.indie===true || (m&&m.indie) || INDIE_ARTISTS.has(artist)),
       chartTop: m?!!m.chartTop:false,
-      bridge: s.bridge===true,
-      bridgeLight: s.bridgeLight===true,
+      bridge, bridgeLight,
       comment: s.reason||s.comment||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]

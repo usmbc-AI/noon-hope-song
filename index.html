@@ -658,42 +658,73 @@ async function runSelection(kept){
   }
 }
 
-// ---------- AI DJ 음성 (TTS, OpenAI 프록시) ----------
-const ttsCache={}; let curAudio=null;
-async function ttsFetch(text,key){
-  if(ttsCache[key]) return ttsCache[key];
-  const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
-  if(!r.ok) throw new Error("tts "+r.status);
-  const url=URL.createObjectURL(await r.blob());
-  ttsCache[key]=url; return url;
+// ---------- AI DJ 음성 (TTS + Web Audio '차원통신' 효과) ----------
+const DJ_NAME = "μεσημέρι"; // AI세계 DJ 이름(그리스어 '정오') — 바꾸려면 여기만
+// 첫 곡은 [인사 앞 | 이름 | 인사 뒤+소개글] 3조각 → 이름 조각만 글리치, 전체엔 은은한 차원통신 효과
+function greetingSegs(s){
+  return [
+    { text:"안녕하세요. 14차원을 넘어 이곳으로 온,", fx:"dim" },
+    { text: DJ_NAME, fx:"glitch" },
+    { text:`라고 해요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${s.comment||""}`, fx:"dim" }
+  ];
 }
-const DJ_NAME = "제피론"; // AI세계에서 온 DJ 이름(외계어 느낌) — 바꾸려면 여기만 수정
-// 읽을 텍스트: 맨 첫 곡(idx 0)에만 인사말을 앞에 붙이고, 뒤엔 화면 소개 글 그대로
-function ttsText(s, idx){
-  const base = s.comment || (s.title+" — "+s.artist);
-  if(idx===0){
-    return `안녕하세요. 14차원을 넘어 이곳으로 온 ${DJ_NAME}이에요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${base}`;
-  }
-  return base;
+function songSegs(s, idx){
+  if(idx===0) return greetingSegs(s);
+  return [ { text:(s.comment||(s.title+" — "+s.artist)), fx:"dim" } ];
 }
 function hashStr(str){ let h=0; for(let i=0;i<str.length;i++){ h=(Math.imul(31,h)+str.charCodeAt(i))|0; } return "t"+(h>>>0); }
-function ttsKey(s, idx){ return hashStr(ttsText(s, idx)); } // 읽을 텍스트 내용 기준 캐시
-// 선곡 나오면 9곡 멘트를 미리 음성으로 뽑아 캐싱 → 버튼 누르면 즉시 재생(라이브 안전)
-function prerenderTTS(songs){ (songs||[]).forEach((s,i)=>{ ttsFetch(ttsText(s,i), ttsKey(s,i)).catch(()=>{}); }); }
+
+let audioCtx=null;
+function getCtx(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} } return audioCtx; }
+const bufCache={}; let noiseBuf=null;
+function getNoise(){ const ctx=getCtx(); if(!noiseBuf){ noiseBuf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; } return noiseBuf; }
+function distCurve(a){ const n=8192,c=new Float32Array(n); for(let i=0;i<n;i++){ const x=i*2/n-1; c[i]=(3+a)*x*20*(Math.PI/180)/(Math.PI+a*Math.abs(x)); } return c; }
+async function ttsBuffer(text){
+  const key=hashStr(text); if(bufCache[key]) return bufCache[key];
+  const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+  if(!r.ok) throw new Error("tts "+r.status);
+  const buf=await getCtx().decodeAudioData(await r.arrayBuffer());
+  bufCache[key]=buf; return buf;
+}
+function prerenderTTS(songs){ (songs||[]).forEach((s,i)=>{ songSegs(s,i).forEach(seg=> ttsBuffer(seg.text).catch(()=>{})); }); }
+
+let playToken=0, curNodes=[];
+function stopAll(){ curNodes.forEach(n=>{ try{n.stop();}catch(_){} }); curNodes=[]; }
+function playSeg(buf, fx, token){
+  return new Promise(resolve=>{
+    if(token!==playToken){ resolve(); return; }
+    const ctx=getCtx(), glitch=(fx==="glitch");
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const shaper=ctx.createWaveShaper(); shaper.curve=distCurve(glitch?22:5); shaper.oversample="2x";
+    const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=glitch?550:220;
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=glitch?3000:7500;
+    const g=ctx.createGain(); g.gain.value=glitch?0.9:1.0;
+    src.connect(shaper); shaper.connect(hp); hp.connect(lp); lp.connect(g); g.connect(ctx.destination);
+    const noise=ctx.createBufferSource(); noise.buffer=getNoise(); noise.loop=true;
+    const nbp=ctx.createBiquadFilter(); nbp.type="bandpass"; nbp.frequency.value=1800; nbp.Q.value=0.7;
+    const ng=ctx.createGain(); ng.gain.value=glitch?0.10:0.03;
+    noise.connect(nbp); nbp.connect(ng); ng.connect(ctx.destination);
+    if(glitch) src.playbackRate.value=0.92;
+    curNodes.push(src, noise);
+    src.onended=()=>{ try{noise.stop();}catch(_){} resolve(); };
+    try{ src.start(); noise.start(); }catch(_){ resolve(); }
+  });
+}
 async function playDJ(idx, btn){
   const s=currentOut&&currentOut.songs[idx]; if(!s) return;
-  if(curAudio){ try{curAudio.pause();}catch(_){} }
+  const token=++playToken; stopAll();
   document.querySelectorAll(".say").forEach(b=>{ if(!b.disabled) b.textContent="🔊"; });
+  btn.disabled=true; btn.textContent="⏳";
   try{
-    btn.disabled=true; btn.textContent="⏳";
-    const url=await ttsFetch(ttsText(s,idx), ttsKey(s,idx));
-    curAudio=new Audio(url);
-    curAudio.onended=()=>{ btn.textContent="🔊"; };
-    curAudio.onpause=()=>{ btn.textContent="🔊"; };
-    await curAudio.play();
-    btn.textContent="🔈";
-  }catch(e){ console.warn("TTS 실패",e); btn.textContent="⚠️"; setTimeout(()=>{btn.textContent="🔊";},1500); }
+    const ctx=getCtx(); if(ctx && ctx.state==="suspended") await ctx.resume();
+    const segs=songSegs(s,idx);
+    const bufs=await Promise.all(segs.map(seg=> ttsBuffer(seg.text)));
+    if(token!==playToken) return;
+    btn.disabled=false; btn.textContent="🔈";
+    for(let i=0;i<bufs.length;i++){ if(token!==playToken) break; await playSeg(bufs[i], segs[i].fx, token); }
+  }catch(e){ console.warn("TTS 재생 실패",e); btn.textContent="⚠️"; setTimeout(()=>{btn.textContent="🔊";},1500); return; }
   finally{ btn.disabled=false; }
+  if(token===playToken) btn.textContent="🔊";
 }
 
 function render(out, short){

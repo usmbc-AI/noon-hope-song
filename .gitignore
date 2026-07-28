@@ -9,3 +9,4 @@ node_modules/
 
 # 에디터 / 로컬 도구 설정
 .claude/
+voicetest.html

@@ -6,9 +6,9 @@
 // 응답: audio/mpeg (mp3 바이너리)
 
 const DEFAULT_INSTRUCTIONS =
-  "너는 정오의 희망곡의 어린 소년 DJ '정오'야. 변성기가 오기 전의, 맑고 앳되고 밝은 남자아이 목소리로 말해. " +
+  "너는 정오의 희망곡의 라디오 진행자 '정오'야. 변성기가 오기 전의, 맑고 앳되고 밝은 남자아이 같은 목소리로 말해. " +
   "톤은 높고 청량하지만 과장 없이, 순수하고 정겹게. " +
-  "곡 내용이 신나든 슬프든 상관없이 '항상 같은 소년'의 목소리·톤·속도·억양을 일관되게 유지해. 매번 같은 아이가 말하는 것처럼 또박또박 자연스럽게.";
+  "곡 내용이 신나든 슬프든 상관없이 항상 같은 목소리·톤·속도·억양을 일관되게 유지해. 매번 같은 사람이 말하는 것처럼 또박또박 자연스럽게.";
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
   const text = (body && body.text || "").toString().slice(0, 900);
   if (!text.trim()) return res.status(400).json({ error: "text 필요" });
 
-  const voice = (body && body.voice) || process.env.OPENAI_TTS_VOICE || "coral";
+  const voice = (body && body.voice) || process.env.OPENAI_TTS_VOICE || "alloy";
   const model = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
   const instructions = (body && body.instructions) || DEFAULT_INSTRUCTIONS;
   const speed = Math.min(4, Math.max(0.25, Number((body && body.speed) || process.env.OPENAI_TTS_SPEED || 1.2)));

@@ -668,7 +668,7 @@ const DJ_NAME = "정오"; // AI세계 DJ 이름 — 바꾸려면 여기만
 let greeted=false; // 세션에서 '맨 처음 재생하는 곡'에만 인사말 (1번이 아니어도 됨)
 function commentText(s){ return (s.comment||""); }
 function introLine(s){ return `다음 곡은 ${s.artist}의 ${s.title}입니다. `; } // 매 곡 곡명·가수 안내
-function greetText(s){ return `안녕하세요. 14차원을 넘어 이곳으로 온 ${DJ_NAME}라고 해요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${commentText(s)}`; }
+function greetText(s){ return `안녕하세요. 14차원을 넘어 이곳으로 온 ${DJ_NAME}예요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${commentText(s)}`; }
 // 첫 재생 곡=인사말+곡안내+소개, 나머지='다음 곡은 …입니다'+소개. (한 덩어리, 끊김 없음)
 function songSegs(s, withGreeting){
   return [ { text: withGreeting ? greetText(s) : (introLine(s) + commentText(s)) } ];

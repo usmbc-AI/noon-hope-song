@@ -24,6 +24,7 @@ const tagsHandler = require("./api/tags.js");
 const selectHandler = require("./api/select.js");
 const chartHandler = require("./api/chart.js");
 const poolHandler = require("./api/pool.js");
+const ttsHandler = require("./api/tts.js");
 
 function readBody(req) {
   return new Promise((resolve) => {
@@ -52,6 +53,7 @@ const server = http.createServer(async (req, res) => {
     try {
       if (url === "/api/chart") return await chartHandler(req, res);
       if (url === "/api/pool") return await poolHandler(req, res);
+      if (url === "/api/tts") return await ttsHandler(req, res);
       if (url === "/api/tags") return await tagsHandler(req, res);
       if (url === "/api/select") return await selectHandler(req, res);
       return res.status(404).json({ error: "not found" });

@@ -144,6 +144,10 @@
   .track.is-indie{background:linear-gradient(90deg,rgba(246,166,9,.08),transparent 70%)}
   .track.is-indie .no{color:var(--ink)}
   .track .meta{font-size:11.5px;color:var(--ink-soft);opacity:.85;margin-top:3px}
+  .say{margin-left:8px;border:1px solid var(--line-strong);background:#fff;border-radius:8px;
+    padding:1px 8px;font-size:13px;cursor:pointer;vertical-align:middle;line-height:1.4}
+  .say:hover{background:#FFF9EE}
+  .say:disabled{cursor:progress;opacity:.7}
   .track .comment{font-family:"Gowun Batang";font-size:14px;color:var(--text);margin-top:6px;line-height:1.65}
   .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .tagchip{font-size:10.5px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-soft);border-radius:999px;padding:1px 8px}
@@ -562,6 +566,7 @@ function attachMeta(out,pool){
       bridge: s.bridge===true,
       bridgeLight: s.bridgeLight===true,
       comment: s.reason||s.comment||"",
+      djLine: s.dj_line||s.djLine||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]
     };
@@ -654,6 +659,35 @@ async function runSelection(kept){
   }
 }
 
+// ---------- AI DJ 음성 (TTS, OpenAI 프록시) ----------
+const ttsCache={}; let curAudio=null;
+async function ttsFetch(text,key){
+  if(ttsCache[key]) return ttsCache[key];
+  const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+  if(!r.ok) throw new Error("tts "+r.status);
+  const url=URL.createObjectURL(await r.blob());
+  ttsCache[key]=url; return url;
+}
+function ttsText(s){ return (s.djLine||s.comment||(s.title+", "+s.artist)); }
+function ttsKey(s){ return keyOfSong(s)+"|dj"; }
+// 선곡 나오면 9곡 멘트를 미리 음성으로 뽑아 캐싱 → 버튼 누르면 즉시 재생(라이브 안전)
+function prerenderTTS(songs){ (songs||[]).forEach(s=>{ ttsFetch(ttsText(s), ttsKey(s)).catch(()=>{}); }); }
+async function playDJ(idx, btn){
+  const s=currentOut&&currentOut.songs[idx]; if(!s) return;
+  if(curAudio){ try{curAudio.pause();}catch(_){} }
+  document.querySelectorAll(".say").forEach(b=>{ if(!b.disabled) b.textContent="🔊"; });
+  try{
+    btn.disabled=true; btn.textContent="⏳";
+    const url=await ttsFetch(ttsText(s), ttsKey(s));
+    curAudio=new Audio(url);
+    curAudio.onended=()=>{ btn.textContent="🔊"; };
+    curAudio.onpause=()=>{ btn.textContent="🔊"; };
+    await curAudio.play();
+    btn.textContent="🔈";
+  }catch(e){ console.warn("TTS 실패",e); btn.textContent="⚠️"; setTimeout(()=>{btn.textContent="🔊";},1500); }
+  finally{ btn.disabled=false; }
+}
+
 function render(out, short){
   const songs=Array.isArray(out.songs)?out.songs:[];
   const moods=(out.mood_keywords||[]).map(m=>`<span class="mood">#${esc(m)}</span>`).join("");
@@ -689,7 +723,7 @@ function render(out, short){
         <div class="no">${String(i+1).padStart(2,"0")}</div>
         ${art}
         <div class="body">
-          <div class="song">${esc(s.title)} <span class="artist">— ${esc(s.artist)}</span>${badge}</div>
+          <div class="song">${esc(s.title)} <span class="artist">— ${esc(s.artist)}</span>${badge}<button class="say" data-idx="${i}" title="AI DJ가 이 곡을 소개해요">🔊</button></div>
           ${meta}
           <div class="comment">${esc(s.comment)}</div>
           ${tags}
@@ -700,6 +734,8 @@ function render(out, short){
   html+= note + `<button class="again" id="again">🔄 다시 선곡하기<span class="again-sub">체크한 곡은 유지 · 나머지는 새 곡으로</span></button>`;
   document.getElementById("result").innerHTML=html;
   document.getElementById("again").addEventListener("click",reselect);
+  document.querySelectorAll(".say").forEach(b=>b.addEventListener("click",()=>playDJ(+b.dataset.idx,b)));
+  prerenderTTS(songs); // 곡 소개 음성 미리 뽑아두기
 }
 
 // desiredVibes: 오늘 날씨/계절 → 타깃 무드 키워드(선곡 AI에 힌트로 전달)

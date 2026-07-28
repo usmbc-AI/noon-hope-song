@@ -666,11 +666,12 @@ async function runSelection(kept){
 const DJ_NAME = "μεσημέρι"; // AI세계 DJ 이름(그리스어 '정오') — 바꾸려면 여기만
 // 첫 곡은 [인사 앞 | 이름 | 인사 뒤+소개글] 3조각 → 이름 조각만 글리치, 전체엔 은은한 차원통신 효과
 let greeted=false; // 세션에서 '맨 처음 재생하는 곡'에만 인사말 (1번이 아니어도 됨)
-function commentText(s){ return (s.comment||(s.title+" — "+s.artist)); }
+function commentText(s){ return (s.comment||""); }
+function introLine(s){ return `다음 곡은 ${s.artist}의 ${s.title}입니다. `; } // 매 곡 곡명·가수 안내
 function greetText(s){ return `안녕하세요. 14차원을 넘어 이곳으로 온 ${DJ_NAME}라고 해요. 오늘 소개해 드릴 노래는 ${s.artist}의 ${s.title}입니다. ${commentText(s)}`; }
-// 인사말은 한 덩어리(끊김 없음). 첫 재생 곡만 인사말+소개, 나머지는 소개만.
+// 첫 재생 곡=인사말+곡안내+소개, 나머지='다음 곡은 …입니다'+소개. (한 덩어리, 끊김 없음)
 function songSegs(s, withGreeting){
-  return [ { text: withGreeting ? greetText(s) : commentText(s) } ];
+  return [ { text: withGreeting ? greetText(s) : (introLine(s) + commentText(s)) } ];
 }
 function hashStr(str){ let h=0; for(let i=0;i<str.length;i++){ h=(Math.imul(31,h)+str.charCodeAt(i))|0; } return "t"+(h>>>0); }
 
@@ -685,7 +686,7 @@ async function ttsBuffer(text){
   bufCache[key]=buf; return buf;
 }
 function prerenderTTS(songs){
-  (songs||[]).forEach(s=>{ ttsBuffer(commentText(s)).catch(()=>{}); ttsBuffer(greetText(s)).catch(()=>{}); });
+  (songs||[]).forEach(s=>{ ttsBuffer(introLine(s)+commentText(s)).catch(()=>{}); ttsBuffer(greetText(s)).catch(()=>{}); });
 }
 
 let playToken=0, curNodes=[];

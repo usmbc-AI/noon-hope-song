@@ -663,7 +663,7 @@ async function runSelection(kept){
 }
 
 // ---------- AI DJ 음성 (TTS + Web Audio '차원통신' 효과) ----------
-const DJ_NAME = "μεσημέρι"; // AI세계 DJ 이름(그리스어 '정오') — 바꾸려면 여기만
+const DJ_NAME = "정오"; // AI세계 DJ 이름 — 바꾸려면 여기만
 // 첫 곡은 [인사 앞 | 이름 | 인사 뒤+소개글] 3조각 → 이름 조각만 글리치, 전체엔 은은한 차원통신 효과
 let greeted=false; // 세션에서 '맨 처음 재생하는 곡'에만 인사말 (1번이 아니어도 됨)
 function commentText(s){ return (s.comment||""); }

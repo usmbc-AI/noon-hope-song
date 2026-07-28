@@ -677,9 +677,7 @@ function hashStr(str){ let h=0; for(let i=0;i<str.length;i++){ h=(Math.imul(31,h
 
 let audioCtx=null;
 function getCtx(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){} } return audioCtx; }
-const bufCache={}; let noiseBuf=null;
-function getNoise(){ const ctx=getCtx(); if(!noiseBuf){ noiseBuf=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; } return noiseBuf; }
-function distCurve(a){ const n=8192,c=new Float32Array(n); for(let i=0;i<n;i++){ const x=i*2/n-1; c[i]=(3+a)*x*20*(Math.PI/180)/(Math.PI+a*Math.abs(x)); } return c; }
+const bufCache={};
 async function ttsBuffer(text){
   const key=hashStr(text); if(bufCache[key]) return bufCache[key];
   const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
@@ -694,24 +692,14 @@ function prerenderTTS(songs){
 
 let playToken=0, curNodes=[];
 function stopAll(){ curNodes.forEach(n=>{ try{n.stop();}catch(_){} }); curNodes=[]; }
-function playSeg(buf, fx, token){
+function playSeg(buf, token){
   return new Promise(resolve=>{
     if(token!==playToken){ resolve(); return; }
-    const ctx=getCtx(), glitch=(fx==="glitch");
-    const src=ctx.createBufferSource(); src.buffer=buf;
-    const shaper=ctx.createWaveShaper(); shaper.curve=distCurve(glitch?22:5); shaper.oversample="2x";
-    const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=glitch?550:220;
-    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=glitch?3000:7500;
-    const g=ctx.createGain(); g.gain.value=glitch?0.9:1.0;
-    src.connect(shaper); shaper.connect(hp); hp.connect(lp); lp.connect(g); g.connect(ctx.destination);
-    const noise=ctx.createBufferSource(); noise.buffer=getNoise(); noise.loop=true;
-    const nbp=ctx.createBiquadFilter(); nbp.type="bandpass"; nbp.frequency.value=1800; nbp.Q.value=0.7;
-    const ng=ctx.createGain(); ng.gain.value=glitch?0.10:0.03;
-    noise.connect(nbp); nbp.connect(ng); ng.connect(ctx.destination);
-    if(glitch) src.playbackRate.value=0.92;
-    curNodes.push(src, noise);
-    src.onended=()=>{ try{noise.stop();}catch(_){} resolve(); };
-    try{ src.start(); noise.start(); }catch(_){ resolve(); }
+    const ctx=getCtx();
+    const src=ctx.createBufferSource(); src.buffer=buf; src.connect(ctx.destination);
+    curNodes.push(src);
+    src.onended=()=>resolve();
+    try{ src.start(); }catch(_){ resolve(); }
   });
 }
 async function playDJ(idx, btn){
@@ -727,7 +715,7 @@ async function playDJ(idx, btn){
     if(token!==playToken) return;
     if(withGreeting) greeted=true; // 인사말은 세션에서 한 번만
     btn.disabled=false; btn.textContent="🔈";
-    for(let i=0;i<bufs.length;i++){ if(token!==playToken) break; await playSeg(bufs[i], segs[i].fx, token); }
+    for(let i=0;i<bufs.length;i++){ if(token!==playToken) break; await playSeg(bufs[i], token); }
   }catch(e){ console.warn("TTS 재생 실패",e); btn.textContent="⚠️"; setTimeout(()=>{btn.textContent="🔊";},1500); return; }
   finally{ btn.disabled=false; }
   if(token===playToken) btn.textContent="🔊";

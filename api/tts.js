@@ -27,12 +27,13 @@ module.exports = async (req, res) => {
   const voice = (body && body.voice) || process.env.OPENAI_TTS_VOICE || "coral";
   const model = process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts";
   const instructions = (body && body.instructions) || DEFAULT_INSTRUCTIONS;
+  const speed = Math.min(4, Math.max(0.25, Number((body && body.speed) || process.env.OPENAI_TTS_SPEED || 1.2)));
 
   try {
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, input: text, voice, instructions, response_format: "mp3" }),
+      body: JSON.stringify({ model, input: text, voice, instructions, response_format: "mp3", speed }),
     });
     if (!r.ok) {
       const t = await r.text();

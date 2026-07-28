@@ -34,8 +34,12 @@ async function mapLimited(items, limit, fn){
   return out;
 }
 async function getJSON(url){
-  try{ const r=await fetch(url,{headers:{"User-Agent":"noon-hope-song/1.0"}}); if(!r.ok)return null; return await r.json(); }
-  catch(_){ return null; }
+  try{
+    const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),8000); // 8초 넘으면 포기(빌드 지연 방지)
+    const r=await fetch(url,{headers:{"User-Agent":"noon-hope-song/1.0"}, signal:ctl.signal});
+    clearTimeout(to);
+    if(!r.ok)return null; return await r.json();
+  }catch(_){ return null; }
 }
 function itunesArtist(a, country){
   const lang=country==="KR"?"ko_kr":"en_us";
@@ -61,9 +65,9 @@ module.exports = async (req, res) => {
 
   const [krC, usC] = await Promise.all([chartFeed("kr",50), chartFeed("us",40)]);
 
-  // 차트 반영률↑: 국내 28명(차트19+메이저2+인디7) + 해외 팝 12명(차트8+에버그린4) = 총 40명
-  const krArtists = [...new Set([...shuffle(krC.artists).slice(0,19), ...shuffle(MAJOR_EVERGREEN).slice(0,2), ...shuffle(INDIE_POOL).slice(0,7)])].slice(0,28);
-  const popArtists = [...new Set([...shuffle(usC.artists).slice(0,8), ...shuffle(POP_ARTISTS).slice(0,4)])].slice(0,12);
+  // 국내 42명(차트27+메이저5+인디10) + 해외 팝 18명(차트10+에버그린8) = 총 60명 (다양성↑)
+  const krArtists = [...new Set([...shuffle(krC.artists).slice(0,27), ...shuffle(MAJOR_EVERGREEN).slice(0,5), ...shuffle(INDIE_POOL).slice(0,10)])].slice(0,42);
+  const popArtists = [...new Set([...shuffle(usC.artists).slice(0,10), ...shuffle(POP_ARTISTS).slice(0,8)])].slice(0,18);
 
   const seen=new Set(); const pool=[];
   const collect=(dataArr, origin)=>{
@@ -81,8 +85,8 @@ module.exports = async (req, res) => {
       });
     });
   };
-  collect(await mapLimited(krArtists,3,a=>itunesArtist(a,"KR")), "kr");
-  collect(await mapLimited(popArtists,3,a=>itunesArtist(a,"US")), "pop");
+  collect(await mapLimited(krArtists,6,a=>itunesArtist(a,"KR")), "kr");
+  collect(await mapLimited(popArtists,6,a=>itunesArtist(a,"US")), "pop");
 
   // 현재 인기차트 상위곡(아이돌 히트) 확보 — 최소 1곡 보장용
   const topSongs=(krC.songs||[]).slice(0,6);

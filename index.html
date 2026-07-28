@@ -465,7 +465,7 @@ function loadPoolCache(){
   return null;
 }
 function savePoolCache(pool){
-  try{ localStorage.setItem("pool:v4", JSON.stringify({ts:Date.now(), pool:pool.slice(0,500)})); }catch(_){}
+  try{ localStorage.setItem("pool:v4", JSON.stringify({ts:Date.now(), pool:pool.slice(0,900)})); }catch(_){}
 }
 
 // 곡 풀은 서버(/api/pool)에서 수집 — 브라우저가 iTunes를 직접 안 부르므로
@@ -643,7 +643,8 @@ async function runSelection(kept){
 
     // 무드/키워드마다 다른 후보군을 보도록 salt에 무드 반영(자동↔수동, 키워드별 차별화)
     const moodSalt=(currentMood||[]).join(",").split("").reduce((a,c)=>a+c.charCodeAt(0),0);
-    const shortlist=prefilter(avail, Math.max(need*8,60), seenKeys.size + moodSalt + 1);
+    const runSalt=Math.floor(Math.random()*1000000); // 매 실행 다른 후보군 → 매번 다양하게
+    const shortlist=prefilter(avail, Math.max(need*8,60), seenKeys.size + moodSalt + runSalt + 1);
     const themeSongs=await fetchThemeSongs(keptArtists);      // 제목 말장난용 테마곡
     const cands=dedupeSongs([...shortlist, ...themeSongs]);
     setLoad("곡의 무드 태그를 살피는 중…");

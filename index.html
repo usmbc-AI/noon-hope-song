@@ -566,7 +566,6 @@ function attachMeta(out,pool){
       bridge: s.bridge===true,
       bridgeLight: s.bridgeLight===true,
       comment: s.reason||s.comment||"",
-      djLine: s.dj_line||s.djLine||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
       artwork:m?m.artwork:"", url:m?m.url:"", tags:m?(m.tags||[]):[]
     };
@@ -668,7 +667,7 @@ async function ttsFetch(text,key){
   const url=URL.createObjectURL(await r.blob());
   ttsCache[key]=url; return url;
 }
-function ttsText(s){ return (s.djLine||s.comment||(s.title+", "+s.artist)); }
+function ttsText(s){ return (s.comment||(s.title+" — "+s.artist)); } // 화면의 소개 글(이유)을 그대로 읽음
 function ttsKey(s){ return keyOfSong(s)+"|dj"; }
 // 선곡 나오면 9곡 멘트를 미리 음성으로 뽑아 캐싱 → 버튼 누르면 즉시 재생(라이브 안전)
 function prerenderTTS(songs){ (songs||[]).forEach(s=>{ ttsFetch(ttsText(s), ttsKey(s)).catch(()=>{}); }); }

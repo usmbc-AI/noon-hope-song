@@ -51,7 +51,8 @@ function buildPrompt(ctx, candidates, kept, need, total) {
       const genre = c.genre ? ` · 장르: ${c.genre}` : "";
       const year = c.year ? ` · ${c.year}` : "";
       const label = c.origin === "pop" ? "[팝]" : (c.chart ? "[차트]" : (c.indie ? "[인디]" : "[국내]"));
-      return `${i + 1}. ${label} ${c.title} — ${c.artist}${genre}${year}${tags}`;
+      const theme = c.theme ? ` [제목테마:${c.theme}]` : "";
+      return `${i + 1}. ${label}${theme} ${c.title} — ${c.artist}${genre}${year}${tags}`;
     })
     .join("\n");
   const targetMood = Array.isArray(ctx.targetMood) && ctx.targetMood.length
@@ -92,6 +93,7 @@ ${hasUserMood
    - **모두 서로 다른 아티스트여야 합니다** (한 가수의 곡을 2개 이상 넣지 마세요). 피처링·합작도 대표 가수 기준으로 같게 봅니다 (예: "Ariana Grande"와 "Ariana Grande & Justin Bieber"는 같은 아티스트).${kept.length ? " 확정곡의 아티스트도 피하세요." : ""}
 ${hasUserMood ? "   - 차트 상위곡을 억지로 넣지 마세요. 오직 진행자 무드에만 충실하세요." : "   - **[차트] 표시된 '현재 인기차트 상위곡'을 반드시 1곡 이상 포함하세요.** (아이돌·댄스 히트곡 환영 — 대중성 확보용. 오늘 무드와 크게 어긋나지 않으면 넣으세요.)"}
    - **[인디] 표시된 '숨은 명곡'을 2~3곡 반드시 포함하세요.** (차트 밖의 좋은 곡을 발굴하는 것이 DJ의 역량입니다.) 그 곡은 indie:true 로 표시하고, reason에 왜 숨은 명곡인지 살짝 소개하듯 써주세요.
+   - **(가끔) 제목 말장난**: \`[제목테마:○○]\` 표시된 곡은 제목에 그 단어가 들어간 곡이에요. 오늘 상황과 제목을 재치있게 엮을 수 있으면(예: 폭염날 → 이열치열로 '불' 들어간 제목) 그런 곡을 1곡 골라 reason에서 제목을 살려 소개하세요. 단, 억지스럽거나 오늘 무드와 안 맞으면 넣지 말고 무시하세요(매번 하지 말 것).
    - 너무 무겁거나 격한 곡은 피하고, 한낮에 어울리게 발라드·미디엄·감성 팝을 적절히 섞으세요.
    - **해외 팝 비율**: 확정곡을 포함한 최종 총 ${total}곡 중 [팝]이 3~4곡이 되도록, 확정곡의 [팝] 개수를 고려해 이번에 고를 [팝] 수를 정하세요.
    - songs에는 **이번에 새로 고른 ${need}곡만** 담으세요 (확정곡은 담지 않음).${keptBlock}

@@ -141,6 +141,7 @@
   .digbadge.charthit{background:#2E6FB0}
   .digbadge.bridgebadge{background:#6C5CE7}
   .digbadge.bridgelight{background:#E0932F}
+  .digbadge.themebadge{background:#1F9E7A}
   .track.is-indie{background:linear-gradient(90deg,rgba(246,166,9,.08),transparent 70%)}
   .track.is-indie .no{color:var(--ink)}
   .track .meta{font-size:11.5px;color:var(--ink-soft);opacity:.85;margin-top:3px}
@@ -546,7 +547,7 @@ async function aiSelect(candidates, opts={}){
   const need=opts.need||TOTAL;
   const r=await fetch("/api/select",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({context, kept, need, total:TOTAL,
-      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:(s.indie!=null?!!s.indie:INDIE_ARTISTS.has(s.artist)),chart:!!s.chartTop}))})});
+      candidates:candidates.map(s=>({title:s.title,artist:s.artist,genre:s.genre,year:s.year,tags:s.tags,origin:s.origin,indie:(s.indie!=null?!!s.indie:INDIE_ARTISTS.has(s.artist)),chart:!!s.chartTop,theme:s.themeTerm||null}))})});
   if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error(e.error||("select "+r.status)); }
   return await r.json();
 }
@@ -568,6 +569,7 @@ function attachMeta(out,pool){
       pop: origin==="pop",
       indie: origin!=="pop" && (s.indie===true || (m&&m.indie) || INDIE_ARTISTS.has(artist)),
       chartTop: m?!!m.chartTop:false,
+      theme: m?!!m.themeTerm:false,
       bridge, bridgeLight,
       comment: s.reason||s.comment||"",
       genre:m?m.genre:"", year:m?m.year:"", album:m?m.album:"",
@@ -601,6 +603,28 @@ function getCheckedKept(){
   return kept;
 }
 
+// 오늘 상황 → '제목 테마' 검색어 (수동=키워드 그대로, 자동=날씨/특보 매핑)
+function themeTerms(){
+  if(Array.isArray(currentMood) && currentMood.length) return currentMood.slice(0,3);
+  const t=[]; const cond=(weatherText||"")+(weatherAlert||""); const f=(wx.feel!=null?wx.feel:wx.temp);
+  if(/폭염|무더위/.test(weatherAlert||"") || (f!=null&&f>=31)) t.push("더위","여름","불");
+  else if(/한파/.test(weatherAlert||"") || (f!=null&&f<=0)) t.push("겨울","눈");
+  if(/비|호우|소나기|이슬/.test(cond)) t.push("비","빗속");
+  if(/눈|대설/.test(cond)) t.push("눈","겨울");
+  if(!t.length){ t.push(season==="봄"?"봄":season==="가을"?"가을":season==="여름"?"여름":"겨울"); }
+  return [...new Set(t)].slice(0,3);
+}
+async function fetchThemeSongs(keptArtists){
+  const terms=themeTerms(); if(!terms.length) return [];
+  try{
+    const r=await fetch("/api/theme",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({terms})});
+    if(!r.ok) return [];
+    const list=(await r.json()).songs||[];
+    return list.filter(s=> !seenKeys.has(keyOfSong(s)) && !(keptArtists&&keptArtists.has(primaryArtistKey(s.artist))));
+  }catch(_){ return []; }
+}
+function dedupeSongs(arr){ const seen=new Set(),out=[]; for(const s of arr){ const k=keyOfSong(s); if(seen.has(k))continue; seen.add(k); out.push(s);} return out; }
+
 async function runSelection(kept){
   const btn=document.getElementById("go");
   btn.disabled=true;
@@ -620,11 +644,13 @@ async function runSelection(kept){
     // 무드/키워드마다 다른 후보군을 보도록 salt에 무드 반영(자동↔수동, 키워드별 차별화)
     const moodSalt=(currentMood||[]).join(",").split("").reduce((a,c)=>a+c.charCodeAt(0),0);
     const shortlist=prefilter(avail, Math.max(need*8,60), seenKeys.size + moodSalt + 1);
+    const themeSongs=await fetchThemeSongs(keptArtists);      // 제목 말장난용 테마곡
+    const cands=dedupeSongs([...shortlist, ...themeSongs]);
     setLoad("곡의 무드 태그를 살피는 중…");
-    await fetchTags(shortlist);
+    await fetchTags(cands);
     setLoad(kept.length?"나머지를 새 곡으로 바꾸는 중…":"오늘 무드에 맞는 곡을 고르는 중…");
-    const aiOut=await aiSelect(shortlist, {kept, need});
-    let fresh=attachMeta(aiOut, pool).songs
+    const aiOut=await aiSelect(cands, {kept, need});
+    let fresh=attachMeta(aiOut, cands).songs
       .filter(s=> !seenKeys.has(keyOfSong(s)) && !keptArtists.has(primaryArtistKey(s.artist)));
 
     const songs=[...kept, ...fresh].slice(0,TOTAL);
@@ -743,7 +769,8 @@ function render(out, short){
                 + (s.bridgeLight ? `<span class="digbadge bridgelight">🦥 대충 일한 버전</span>` : "")
                 + (indie ? `<span class="digbadge">🎧 숨은 명곡</span>` : "")
                 + (s.pop ? `<span class="digbadge popbadge">🌍 팝</span>` : "")
-                + (s.chartTop ? `<span class="digbadge charthit">📈 차트 HIT</span>` : "");
+                + (s.chartTop ? `<span class="digbadge charthit">📈 차트 HIT</span>` : "")
+                + (s.theme ? `<span class="digbadge themebadge">🎯 제목 매치</span>` : "");
     const art = s.artwork ? `<img class="art" src="${esc(s.artwork)}" alt="" loading="lazy">` : "";
     const metaBits=[s.genre,s.year,s.album].filter(Boolean).map(esc).join(" · ");
     const meta = metaBits ? `<div class="meta">${metaBits}</div>` : "";

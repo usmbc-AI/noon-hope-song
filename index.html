@@ -565,7 +565,7 @@ function attachMeta(out,pool){
     const bridge = bridgeMode && s.bridge===true && !usedBridge; if(bridge) usedBridge=true;
     const bridgeLight = bridgeMode && s.bridgeLight===true && !usedLight; if(bridgeLight) usedLight=true;
     return {
-      title:s.title, artist, origin,
+      title:m?m.title:s.title, artist, origin, // AI가 '[제목테마:가을]' 같은 표시를 제목에 붙여 보내도 원래 제목 사용
       pop: origin==="pop",
       indie: origin!=="pop" && (s.indie===true || (m&&m.indie) || INDIE_ARTISTS.has(artist)),
       chartTop: m?!!m.chartTop:false,

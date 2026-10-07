@@ -41,12 +41,13 @@ async function getJSON(url){
     if(!r.ok)return null; return await r.json();
   }catch(_){ return null; }
 }
-function itunesArtist(a, country){
-  const lang=country==="KR"?"ko_kr":"en_us";
-  return getJSON(`https://itunes.apple.com/search?term=${encodeURIComponent(a)}&country=${country}&media=music&entity=song&attribute=artistTerm&limit=25&lang=${lang}`);
+// ※ iTunes 한국(KR) 스토어는 음악 검색이 0건/403을 반환함(2026-10 확인) → 국내 가수도 US 스토어에서 검색.
+//   US 스토어에도 국내 음원이 있고, 한글 검색어(아이유·검정치마 등)도 잘 찾음. 단 가수명이 영문으로 올 수 있음(검정치마→The Black Skirts).
+function itunesArtist(a, lang){
+  return getJSON(`https://itunes.apple.com/search?term=${encodeURIComponent(a)}&country=US&media=music&entity=song&attribute=artistTerm&limit=25&lang=${lang}`);
 }
 function itunesTerm(term){
-  return getJSON(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=KR&media=music&entity=song&limit=2&lang=ko_kr`);
+  return getJSON(`https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=US&media=music&entity=song&limit=2&lang=ko_kr`);
 }
 async function chartFeed(country, limit){
   const j=await getJSON(`https://rss.applemarketingtools.com/api/v2/${country}/music/most-played/${limit}/songs.json`);
@@ -70,23 +71,31 @@ module.exports = async (req, res) => {
   const popArtists = [...new Set([...shuffle(usC.artists).slice(0,10), ...shuffle(POP_ARTISTS).slice(0,8)])].slice(0,18);
 
   const seen=new Set(); const pool=[];
-  const collect=(dataArr, origin)=>{
-    dataArr.forEach(d=>{
-      ((d&&d.results)||[]).forEach(r=>{
+  // queried: 검색에 쓴 가수명 목록(인디 판정용 — 결과 가수명은 영문일 수 있어서 검색어 기준으로 판정)
+  const collect=(dataArr, origin, queried)=>{
+    dataArr.forEach((d,i)=>{
+      const indie = origin!=="pop" && INDIE_SET.has(queried[i]);
+      const results=(d&&d.results)||[];
+      // US 스토어 가수 검색은 느슨해서(BESTie→Bestion 등) 엉뚱한 가수가 섞임 → 결과 중 최다 artistId(=검색한 가수)의 곡과 그 가수가 참여한 곡만 남김
+      const cnt={}; results.forEach(r=>{ if(r.artistId) cnt[r.artistId]=(cnt[r.artistId]||0)+1; });
+      const mainId=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+      const mainName=normKey((results.find(r=>String(r.artistId)===mainId)||{}).artistName);
+      results.forEach(r=>{
         if(!r.trackName||!r.artistName)return;
+        if(mainId && String(r.artistId)!==mainId && !(mainName && normKey(r.artistName).includes(mainName)))return;
         const k=normKey(r.trackName)+"|"+normKey(r.artistName);
         if(seen.has(k))return; seen.add(k);
         pool.push({
           title:r.trackName, artist:r.artistName, origin,
-          indie: origin!=="pop" && INDIE_SET.has(r.artistName),
+          indie: indie || (origin!=="pop" && INDIE_SET.has(r.artistName)),
           album:r.collectionName||"", genre:r.primaryGenreName||"", year:(r.releaseDate||"").slice(0,4),
           artwork:(r.artworkUrl100||"").replace("100x100","120x120"), url:r.trackViewUrl||"", tags:[]
         });
       });
     });
   };
-  collect(await mapLimited(krArtists,6,a=>itunesArtist(a,"KR")), "kr");
-  collect(await mapLimited(popArtists,6,a=>itunesArtist(a,"US")), "pop");
+  collect(await mapLimited(krArtists,6,a=>itunesArtist(a,"ko_kr")), "kr", krArtists);
+  collect(await mapLimited(popArtists,6,a=>itunesArtist(a,"en_us")), "pop", popArtists);
 
   // 현재 인기차트 상위곡(아이돌 히트) 확보 — 최소 1곡 보장용
   const topSongs=(krC.songs||[]).slice(0,6);

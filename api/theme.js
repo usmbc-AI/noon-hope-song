@@ -36,7 +36,7 @@ module.exports = async (req, res) => {
 
   const per = await mapLimited(terms, 3, async (term) => {
     const j = await getJSON(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=KR&media=music&entity=song&attribute=songTerm&limit=8&lang=ko_kr`
+      `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&country=US&media=music&entity=song&attribute=songTerm&limit=8&lang=ko_kr`
     );
     return { term, results: (j && j.results) || [] };
   });

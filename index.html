@@ -476,7 +476,8 @@ async function buildPool(){
   try{
     const j=await (await fetch("/api/pool")).json();
     const pool=Array.isArray(j.pool)?j.pool:[];
-    if(pool.length>=12) savePoolCache(pool);
+    const ks=j.krStat; const krOk=!ks || !ks.asked || ks.localized>=ks.asked*0.5; // 한글화 실패한 풀은 저장 안 함
+    if(pool.length>=12 && krOk) savePoolCache(pool);
     return pool;
   }catch(_){ return []; }
 }

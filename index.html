@@ -774,7 +774,8 @@ function render(out, short){
                 + (s.pop ? `<span class="digbadge popbadge">🌍 팝</span>` : "")
                 + (s.chartTop ? `<span class="digbadge charthit">📈 차트 HIT</span>` : "")
                 + (s.theme ? `<span class="digbadge themebadge">🎯 제목 매치</span>` : "");
-    const art = s.artwork ? `<img class="art" src="${esc(s.artwork)}" alt="" loading="lazy">` : "";
+    // 커버 서버(mzstatic)가 막힌 네트워크면 onerror → 우리 서버 프록시(/api/art)로 한 번 재시도
+    const art = s.artwork ? `<img class="art" src="${esc(s.artwork)}" alt="" loading="lazy" data-src="${esc(s.artwork)}" onerror="if(!this.dataset.p){this.dataset.p=1;this.src='/api/art?u='+encodeURIComponent(this.dataset.src)}">` : "";
     const metaBits=[s.genre,s.year,s.album].filter(Boolean).map(esc).join(" · ");
     const meta = metaBits ? `<div class="meta">${metaBits}</div>` : "";
     const tags = (s.tags||[]).length

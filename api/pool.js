@@ -114,7 +114,7 @@ module.exports = async (req, res) => {
   pool.forEach(p=>{ if(topKeys.has(normKey(p.title)+"|"+normKey(p.artist))) p.chartTop=true; });
 
   // 국내 곡은 KR 스토어 ID 조회로 한글 제목·가수명으로 교체 (US 스토어는 영문으로 줌)
-  await localizeKR(pool.filter(p=>p.origin==="kr"), getJSON);
+  const krStat = await localizeKR(pool.filter(p=>p.origin==="kr"));
   const dedup=new Set();
   pool = pool.filter(p=>{
     const k=normKey(p.title)+"|"+normKey(p.artist); if(dedup.has(k))return false; dedup.add(k);
@@ -127,5 +127,5 @@ module.exports = async (req, res) => {
   }else{
     res.setHeader("Cache-Control","s-maxage=60"); // 실패 시 짧게(곧 재시도)
   }
-  return res.status(200).json({ pool, count: pool.length });
+  return res.status(200).json({ pool, count: pool.length, krStat });
 };

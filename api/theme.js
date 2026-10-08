@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     }
   });
 
-  await localizeKR(songs, getJSON); // 한글 제목·가수명으로
+  await localizeKR(songs); // 한글 제목·가수명으로
   // 한글화 후 제목에 단어가 실제로 든 곡만 (가수 '비'의 'I Do'처럼 가수명으로 걸린 곡 제외)
   const matched = songs.filter((s) => s.title.includes(s.themeTerm));
   res.setHeader("Cache-Control", "s-maxage=3600");

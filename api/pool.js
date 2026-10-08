@@ -122,8 +122,11 @@ module.exports = async (req, res) => {
     return true;
   });
 
-  if(pool.length>=12){
+  const krOk = !krStat.asked || krStat.localized >= krStat.asked*0.5; // 한글화 절반 이상 성공?
+  if(pool.length>=12 && krOk){
     res.setHeader("Cache-Control","s-maxage=21600, stale-while-revalidate=86400"); // 6시간 엣지 캐시
+  }else if(pool.length>=12){
+    res.setHeader("Cache-Control","s-maxage=300"); // 한글화 실패(iTunes 일시 제한) → 5분 뒤 재시도
   }else{
     res.setHeader("Cache-Control","s-maxage=60"); // 실패 시 짧게(곧 재시도)
   }

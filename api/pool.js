@@ -20,6 +20,7 @@ const POP_ARTISTS = [
   "Colbie Caillat","Sara Bareilles","Shawn Mendes","Daniel Caesar","HONNE","Rex Orange County"
 ];
 const INDIE_SET = new Set(INDIE_POOL);
+const { localizeKR } = require("./_kr.js");
 
 function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
 function normKey(s){
@@ -70,7 +71,7 @@ module.exports = async (req, res) => {
   const krArtists = [...new Set([...shuffle(krC.artists).slice(0,27), ...shuffle(MAJOR_EVERGREEN).slice(0,5), ...shuffle(INDIE_POOL).slice(0,10)])].slice(0,42);
   const popArtists = [...new Set([...shuffle(usC.artists).slice(0,10), ...shuffle(POP_ARTISTS).slice(0,8)])].slice(0,18);
 
-  const seen=new Set(); const pool=[];
+  const seen=new Set(); let pool=[];
   // queried: 검색에 쓴 가수명 목록(인디 판정용 — 결과 가수명은 영문일 수 있어서 검색어 기준으로 판정)
   const collect=(dataArr, origin, queried)=>{
     dataArr.forEach((d,i)=>{
@@ -86,7 +87,7 @@ module.exports = async (req, res) => {
         const k=normKey(r.trackName)+"|"+normKey(r.artistName);
         if(seen.has(k))return; seen.add(k);
         pool.push({
-          title:r.trackName, artist:r.artistName, origin,
+          title:r.trackName, artist:r.artistName, origin, trackId:r.trackId,
           indie: indie || (origin!=="pop" && INDIE_SET.has(r.artistName)),
           album:r.collectionName||"", genre:r.primaryGenreName||"", year:(r.releaseDate||"").slice(0,4),
           artwork:(r.artworkUrl100||"").replace("100x100","120x120"), url:r.trackViewUrl||"", tags:[]
@@ -105,12 +106,21 @@ module.exports = async (req, res) => {
     const r=((d&&d.results)||[])[0]; if(!r||!r.trackName||!r.artistName)return;
     const k=normKey(r.trackName)+"|"+normKey(r.artistName); topKeys.add(k);
     if(!seen.has(k)){ seen.add(k); pool.push({
-      title:r.trackName, artist:r.artistName, origin:"kr", chartTop:true, indie:false,
+      title:r.trackName, artist:r.artistName, origin:"kr", trackId:r.trackId, chartTop:true, indie:false,
       album:r.collectionName||"", genre:r.primaryGenreName||"", year:(r.releaseDate||"").slice(0,4),
       artwork:(r.artworkUrl100||"").replace("100x100","120x120"), url:r.trackViewUrl||"", tags:[]
     }); }
   });
   pool.forEach(p=>{ if(topKeys.has(normKey(p.title)+"|"+normKey(p.artist))) p.chartTop=true; });
+
+  // 국내 곡은 KR 스토어 ID 조회로 한글 제목·가수명으로 교체 (US 스토어는 영문으로 줌)
+  await localizeKR(pool.filter(p=>p.origin==="kr"), getJSON);
+  const dedup=new Set();
+  pool = pool.filter(p=>{
+    const k=normKey(p.title)+"|"+normKey(p.artist); if(dedup.has(k))return false; dedup.add(k);
+    if(p.origin==="kr" && INDIE_SET.has(p.artist)) p.indie=true;
+    return true;
+  });
 
   if(pool.length>=12){
     res.setHeader("Cache-Control","s-maxage=21600, stale-while-revalidate=86400"); // 6시간 엣지 캐시

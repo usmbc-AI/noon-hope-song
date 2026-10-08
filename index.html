@@ -459,13 +459,13 @@ function itunesArtist(a, country){
 
 // iTunes 요청 폭주(403/429) 방지: 만든 곡 풀을 12시간 브라우저 캐시
 function loadPoolCache(){
-  try{ const o=JSON.parse(localStorage.getItem("pool:v4")||"null");
+  try{ const o=JSON.parse(localStorage.getItem("pool:v5")||"null");
     if(o && (Date.now()-o.ts) < 12*3600e3 && Array.isArray(o.pool) && o.pool.length>=20) return o.pool;
   }catch(_){}
   return null;
 }
 function savePoolCache(pool){
-  try{ localStorage.setItem("pool:v4", JSON.stringify({ts:Date.now(), pool:pool.slice(0,900)})); }catch(_){}
+  try{ localStorage.setItem("pool:v5", JSON.stringify({ts:Date.now(), pool:pool.slice(0,900)})); }catch(_){}
 }
 
 // 곡 풀은 서버(/api/pool)에서 수집 — 브라우저가 iTunes를 직접 안 부르므로
@@ -559,8 +559,11 @@ function attachMeta(out,pool){
   const bridgeMode = Array.isArray(currentMood) && currentMood.length>=2;
   let usedBridge=false, usedLight=false;
   out.songs=(out.songs||[]).map(s=>{
-    const m=idx[normKey(s.title)+"|"+normKey(s.artist)];
-    const artist=s.artist||(m?m.artist:"");
+    // 1순위: AI가 준 후보 번호(no) — 단, 제목이나 가수가 맞을 때만 신뢰. 2순위: 제목+가수 일치
+    const byNo=Number.isInteger(s.no)?pool[s.no-1]:null;
+    const noOk=byNo && (normKey(byNo.title)===normKey(s.title) || normKey(byNo.artist)===normKey(s.artist));
+    const m=(noOk?byNo:null) || idx[normKey(s.title)+"|"+normKey(s.artist)];
+    const artist=m?m.artist:(s.artist||"");
     const origin=m?m.origin:"";
     const bridge = bridgeMode && s.bridge===true && !usedBridge; if(bridge) usedBridge=true;
     const bridgeLight = bridgeMode && s.bridgeLight===true && !usedLight; if(bridgeLight) usedLight=true;

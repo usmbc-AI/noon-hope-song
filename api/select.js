@@ -30,6 +30,7 @@ const RESPONSE_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
+          no: { type: "INTEGER" }, // 후보 목록 번호 — 화면에서 앨범커버·장르를 정확히 붙이는 데 씀
           title: { type: "STRING" },
           artist: { type: "STRING" },
           indie: { type: "BOOLEAN" },
@@ -37,7 +38,7 @@ const RESPONSE_SCHEMA = {
           bridgeLight: { type: "BOOLEAN" },
           reason: { type: "STRING" },
         },
-        required: ["title", "artist", "reason"],
+        required: ["no", "title", "artist", "reason"],
       },
     },
   },
@@ -127,6 +128,7 @@ ${hasUserMood ? "" : `- opening_ment는 오늘의 기온·하늘·바람을 언�
 [후보 곡 목록] (반드시 이 안에서만 선택)
 ${list}
 
+각 곡의 no에는 후보 목록의 번호를, title·artist에는 목록에 적힌 표기를 그대로 넣으세요(번역·수정·[팝] 같은 표시 붙이기 금지).
 지정된 JSON 스키마로만 출력하세요.`;
 }
 

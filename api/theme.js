@@ -10,6 +10,7 @@ function normKey(s){
     .replace(/\(.*?\)|\[.*?\]|【.*?】/g,"").replace(/feat.*|with .*|ft\..*/gi,"")
     .replace(/[\s\-_.,'"!?~·・&]/g,"");
 }
+const { localizeKR } = require("./_kr.js");
 async function getJSON(url){
   try{ const r=await fetch(url,{headers:{"User-Agent":"noon-hope-song/1.0"}}); if(!r.ok)return null; return await r.json(); }
   catch(_){ return null; }
@@ -50,7 +51,7 @@ module.exports = async (req, res) => {
       const k = normKey(r.trackName) + "|" + normKey(r.artistName);
       if (seen.has(k)) continue; seen.add(k);
       songs.push({
-        title: r.trackName, artist: r.artistName, origin: "kr", themeTerm: term,
+        title: r.trackName, artist: r.artistName, origin: "kr", trackId: r.trackId, themeTerm: term,
         album: r.collectionName || "", genre: r.primaryGenreName || "", year: (r.releaseDate || "").slice(0, 4),
         artwork: (r.artworkUrl100 || "").replace("100x100", "120x120"), url: r.trackViewUrl || "", tags: [],
       });
@@ -58,6 +59,9 @@ module.exports = async (req, res) => {
     }
   });
 
+  await localizeKR(songs, getJSON); // 한글 제목·가수명으로
+  // 한글화 후 제목에 단어가 실제로 든 곡만 (가수 '비'의 'I Do'처럼 가수명으로 걸린 곡 제외)
+  const matched = songs.filter((s) => s.title.includes(s.themeTerm));
   res.setHeader("Cache-Control", "s-maxage=3600");
-  return res.status(200).json({ songs: songs.slice(0, 12) });
+  return res.status(200).json({ songs: matched.slice(0, 12) });
 };

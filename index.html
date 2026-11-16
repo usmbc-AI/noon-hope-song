@@ -167,6 +167,14 @@
   .again-sub{display:block;font-size:11px;opacity:.85;margin-top:3px}
   .again:hover{background:rgba(255,255,255,.5)}
 
+  /* AI DJ 목소리 크레딧 */
+  .credits{margin:26px auto 0;max-width:420px;font-size:12px;color:var(--ink-soft);text-align:center}
+  .credits b{font-variant-numeric:tabular-nums}
+  .credits .bar{height:5px;border-radius:99px;background:var(--line);margin-top:6px;overflow:hidden}
+  .credits .bar i{display:block;height:100%;border-radius:99px;background:var(--ink-soft)}
+  .credits.low b{color:var(--coral)} .credits.low .bar i{background:var(--coral)}
+  .credits.na{opacity:.7}
+
   .foot{text-align:center;font-size:11.5px;color:var(--ink-soft);opacity:.75;margin-top:30px;line-height:1.6}
 
   .err{background:#fff;border:1px solid var(--coral);border-radius:14px;padding:16px;color:var(--coral);font-size:14px;margin-top:20px}
@@ -246,6 +254,8 @@
   </div>
 
   <div id="result"></div>
+
+  <div class="credits" id="credits" style="display:none"></div>
 
   <p class="foot">
     후보 곡은 <b>Apple Music/iTunes의 실제 음원 목록</b>에서 모으고,
@@ -714,9 +724,30 @@ async function ttsBuffer(text){
   const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
   if(!r.ok) throw new Error("tts "+r.status);
   const buf=await getCtx().decodeAudioData(await r.arrayBuffer());
+  loadCredits(); // 방금 크레딧을 썼으니 남은 양 갱신
   bufCache[key]=buf; return buf;
 }
 // (미리생성 제거됨 — 비용 절감 위해 🔊 누를 때만 생성)
+
+// AI DJ 목소리(ElevenLabs) 남은 크레딧 표시 — 페이지 열 때 + 새 음성을 만든 직후 갱신
+async function loadCredits(){
+  const el=document.getElementById("credits"); if(!el) return;
+  try{
+    const j=await (await fetch("/api/credits")).json();
+    if(j.ok){
+      const pct=j.limit>0?Math.max(0,Math.min(100,j.remaining/j.limit*100)):0;
+      const reset=j.resetAt?` · ${new Date(j.resetAt*1000).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})} 충전`:"";
+      el.className="credits"+(pct<10?" low":"");
+      el.innerHTML=`🎙️ AI DJ 목소리 크레딧 <b>${j.remaining.toLocaleString("ko-KR")}</b> / ${j.limit.toLocaleString("ko-KR")} 남음${reset}<div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>`;
+      el.style.display="";
+    }else if(j.reason==="permission"){
+      el.className="credits na";
+      el.textContent="🎙️ AI DJ 목소리 크레딧을 확인할 수 없어요 (ElevenLabs 키에 '사용자 읽기' 권한 필요)";
+      el.style.display="";
+    }else{ el.style.display="none"; } // 미설정·일시 오류면 숨김
+  }catch(_){ el.style.display="none"; }
+}
+loadCredits();
 
 let playToken=0, curNodes=[];
 function stopAll(){ curNodes.forEach(n=>{ try{n.stop();}catch(_){} }); curNodes=[]; }

@@ -16,9 +16,9 @@ const num = (v, d, lo, hi) => { const n = Number(v); return Math.min(hi, Math.ma
 
 // ElevenLabs: 목소리 자체가 캐릭터라 지시문(instructions)은 없음.
 // ElevenLabs 화면에서 듣는 소리와 같게 하려고:
-//  - 모델은 화면 기본값인 eleven_v3 우선, 안 되면 eleven_multilingual_v2 (ELEVENLABS_MODEL 로 지정 가능)
+//  - 모델은 ElevenLabs 화면에서 쓰는 eleven_v4 우선, 안 되면 v3 → multilingual_v2 순 (ELEVENLABS_MODEL 로 지정 가능)
 //  - voice_settings 는 보내지 않음 → 목소리에 저장된 설정 그대로. (환경변수로 지정한 값만 덮어씀)
-const ELEVEN_MODELS = [...new Set([process.env.ELEVENLABS_MODEL, "eleven_v3", "eleven_multilingual_v2"].filter(Boolean))];
+const ELEVEN_MODELS = [...new Set([process.env.ELEVENLABS_MODEL, "eleven_v4", "eleven_v3", "eleven_multilingual_v2"].filter(Boolean))];
 
 function elevenSettings() {
   const env = process.env, vs = {};

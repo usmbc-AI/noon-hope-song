@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ── AI DJ 목소리(ElevenLabs) 키·목소리 ID를 Vercel 운영 환경변수에 등록하고 재배포 ──
-#   사용법:  ./scripts/set-elevenlabs.sh
+#   사용법:  ./scripts/set-elevenlabs.sh                  (키·목소리 ID를 차례로 물어봄 — 권장)
+#            ./scripts/set-elevenlabs.sh <API키> <목소리ID>  (한 줄 실행 — 셸 기록에 키가 남음)
 #   - 키는 화면에 표시되지 않게 입력받고, 명령줄 인자 대신 표준입력으로 Vercel에 전달합니다.
 #   - 등록 전에 ElevenLabs에 짧은 문장("테스트")을 실제로 읽혀서 키·목소리 ID가 맞는지 확인합니다(몇 글자분 크레딧 사용).
 #   - 필요: Vercel CLI 로그인(vercel login) + 이 폴더가 프로젝트에 연결(vercel link)되어 있을 것.
@@ -19,9 +20,14 @@ if [ ! -f .vercel/project.json ]; then
   echo "✗ 프로젝트 연결이 필요합니다:  vercel link --project noon-hope-song"; exit 1
 fi
 
-echo "ElevenLabs 키와 목소리 ID를 입력하세요. (키는 입력해도 화면에 표시되지 않습니다)"
-read -r -s -p "  ElevenLabs API 키 (sk_로 시작): " KEY; echo
-read -r -p "  목소리 ID: " VOICE
+if [ $# -ge 2 ]; then
+  # 한 줄 실행: 키·목소리 ID를 인자로 전달 (셸 기록에 키가 남으니 주의)
+  KEY="$1"; VOICE="$2"
+else
+  echo "ElevenLabs 키와 목소리 ID를 입력하세요. (키는 입력해도 화면에 표시되지 않습니다)"
+  read -r -s -p "  ElevenLabs API 키 (sk_로 시작): " KEY; echo
+  read -r -p "  목소리 ID: " VOICE
+fi
 
 KEY="$(printf %s "$KEY" | tr -d '[:space:]')"
 VOICE="$(printf %s "$VOICE" | tr -d '[:space:]')"

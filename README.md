@@ -27,6 +27,9 @@
 | `GEMINI_API_KEY` | Google AI Studio 발급 키 |
 | `LASTFM_API_KEY` | Last.fm API 키 |
 | `GEMINI_MODEL` | (선택) 기본 `gemini-2.5-flash` |
+| `ELEVENLABS_API_KEY` | AI DJ 음성 — ElevenLabs 키 |
+| `ELEVENLABS_VOICE_ID` | AI DJ 음성 — ElevenLabs에서 만든 목소리 ID |
+| `OPENAI_API_KEY` | AI DJ 음성 폴백 — ElevenLabs가 없거나 실패할 때 사용 |
 
 > 키는 **서버(프록시)에만** 둡니다. `index.html`에는 절대 넣지 않습니다.
 
